@@ -1,0 +1,857 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  RefreshControl,
+  Pressable,
+  Animated,
+  Easing,
+  TextInput,
+  Platform,
+  Dimensions,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '../../store/theme';
+import { useFavoritesStore } from '../../store/favorites';
+import { FeatureCard } from '../../components/ui/FeatureCard';
+import { searchFeatures, categories, getFeatureById } from '../../constants/features';
+import { CATEGORY_COLORS } from '../../constants/theme';
+import { fetchWeather, fetchQuote } from '../../lib/api';
+import { lightImpact } from '../../lib/haptics';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// ─── Greeting ────────────────────────────────────────────────────────────────
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning ☀️';
+  if (h < 17) return 'Good afternoon 🌤';
+  if (h < 21) return 'Good evening 🌆';
+  return 'Good night 🌙';
+}
+
+// ─── Weather icon helper ──────────────────────────────────────────────────────
+
+const WEATHER_ICONS: Record<number, { icon: string; label: string }> = {
+  0:  { icon: 'weather-sunny',         label: 'Clear' },
+  1:  { icon: 'weather-partly-cloudy', label: 'Mainly clear' },
+  2:  { icon: 'weather-partly-cloudy', label: 'Partly cloudy' },
+  3:  { icon: 'weather-cloudy',        label: 'Overcast' },
+  45: { icon: 'weather-fog',           label: 'Foggy' },
+  51: { icon: 'weather-rainy',         label: 'Drizzle' },
+  61: { icon: 'weather-rainy',         label: 'Rain' },
+  71: { icon: 'weather-snowy',         label: 'Snow' },
+  95: { icon: 'weather-lightning',     label: 'Thunderstorm' },
+};
+
+function getWeatherInfo(code: number) {
+  return WEATHER_ICONS[code] ?? { icon: 'weather-partly-cloudy', label: 'Weather' };
+}
+
+// ─── Floating Particle ───────────────────────────────────────────────────────
+
+function FloatingParticle({ delay, x, size, color }: { delay: number; x: number; size: number; color: string }) {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const opacity    = useRef(new Animated.Value(0)).current;
+  const scale      = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.parallel([
+          Animated.timing(opacity, { toValue: 0.7, duration: 600, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+          Animated.timing(scale,   { toValue: 1,   duration: 600, useNativeDriver: true, easing: Easing.out(Easing.back(1.2)) }),
+        ]),
+        Animated.parallel([
+          Animated.timing(translateY, { toValue: -80, duration: 3000, useNativeDriver: true, easing: Easing.inOut(Easing.sin) }),
+          Animated.timing(opacity,    { toValue: 0,   duration: 3000, useNativeDriver: true, easing: Easing.in(Easing.ease) }),
+          Animated.timing(scale,      { toValue: 0.6, duration: 3000, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(translateY, { toValue: 0,   duration: 0, useNativeDriver: true }),
+          Animated.timing(scale,      { toValue: 0.4, duration: 0, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  return (
+    <Animated.View
+      style={{
+        position: 'absolute',
+        bottom: 20,
+        left: x,
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: color,
+        opacity,
+        transform: [{ translateY }, { scale }],
+      }}
+    />
+  );
+}
+
+// ─── Shimmer Skeleton ─────────────────────────────────────────────────────────
+
+function ShimmerSkeleton({ width, height, style }: { width: number | string; height: number; style?: any }) {
+  const shimmer = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 900, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(shimmer, { toValue: 0, duration: 900, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+
+  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.7] });
+
+  return (
+    <Animated.View
+      style={[
+        { width, height, borderRadius: height / 2, backgroundColor: '#C0C0D0', opacity },
+        style,
+      ]}
+    />
+  );
+}
+
+// ─── Animated Card Wrapper ────────────────────────────────────────────────────
+
+function AnimatedCard({ children, delay = 0, style }: { children: React.ReactNode; delay?: number; style?: any }) {
+  const translateY = useRef(new Animated.Value(28)).current;
+  const opacity    = useRef(new Animated.Value(0)).current;
+  const scale      = useRef(new Animated.Value(0.96)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(translateY, { toValue: 0, duration: 550, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
+      Animated.timing(opacity,    { toValue: 1, duration: 500, delay, useNativeDriver: true }),
+      Animated.timing(scale,      { toValue: 1, duration: 500, delay, useNativeDriver: true, easing: Easing.out(Easing.back(1.05)) }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={[style, { opacity, transform: [{ translateY }, { scale }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+// ─── Pulsing Weather Icon ─────────────────────────────────────────────────────
+
+function PulsingWeatherIcon({ name, size, color }: { name: string; size: number; color: string }) {
+  const ring1 = useRef(new Animated.Value(1)).current;
+  const ring1Opacity = useRef(new Animated.Value(0.5)).current;
+  const ring2 = useRef(new Animated.Value(1)).current;
+  const ring2Opacity = useRef(new Animated.Value(0.3)).current;
+  const iconBob = useRef(new Animated.Value(0)).current;
+  const iconRotate = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Pulsing rings
+    const pulse1 = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(ring1, { toValue: 1.8, duration: 1800, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+          Animated.timing(ring1Opacity, { toValue: 0, duration: 1800, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(ring1, { toValue: 1, duration: 0, useNativeDriver: true }),
+          Animated.timing(ring1Opacity, { toValue: 0.5, duration: 0, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    const pulse2 = Animated.loop(
+      Animated.sequence([
+        Animated.delay(600),
+        Animated.parallel([
+          Animated.timing(ring2, { toValue: 1.8, duration: 1800, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+          Animated.timing(ring2Opacity, { toValue: 0, duration: 1800, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(ring2, { toValue: 1, duration: 0, useNativeDriver: true }),
+          Animated.timing(ring2Opacity, { toValue: 0.3, duration: 0, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    // Bob animation
+    const bob = Animated.loop(
+      Animated.sequence([
+        Animated.timing(iconBob, { toValue: -6, duration: 1500, useNativeDriver: true, easing: Easing.inOut(Easing.sin) }),
+        Animated.timing(iconBob, { toValue: 0,  duration: 1500, useNativeDriver: true, easing: Easing.inOut(Easing.sin) }),
+      ])
+    );
+    // Slow rotation for sunny icon
+    const rotate = Animated.loop(
+      Animated.timing(iconRotate, { toValue: 1, duration: 8000, useNativeDriver: true, easing: Easing.linear })
+    );
+
+    pulse1.start(); pulse2.start(); bob.start(); rotate.start();
+    return () => { pulse1.stop(); pulse2.stop(); bob.stop(); rotate.stop(); };
+  }, []);
+
+  const rotation = iconRotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+
+  return (
+    <View style={{ width: size + 32, height: size + 32, alignItems: 'center', justifyContent: 'center' }}>
+      {/* Pulse ring 1 */}
+      <Animated.View style={{
+        position: 'absolute', width: size + 20, height: size + 20,
+        borderRadius: (size + 20) / 2, borderWidth: 2, borderColor: 'rgba(255,255,255,0.6)',
+        opacity: ring1Opacity, transform: [{ scale: ring1 }],
+      }} />
+      {/* Pulse ring 2 */}
+      <Animated.View style={{
+        position: 'absolute', width: size + 20, height: size + 20,
+        borderRadius: (size + 20) / 2, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)',
+        opacity: ring2Opacity, transform: [{ scale: ring2 }],
+      }} />
+      {/* Icon */}
+      <Animated.View style={{ transform: [{ translateY: iconBob }, { rotate: rotation }] }}>
+        <MaterialCommunityIcons name={name as any} size={size} color={color} />
+      </Animated.View>
+    </View>
+  );
+}
+
+// ─── Animated Category Tile ───────────────────────────────────────────────────
+
+function AnimatedCatTile({ icon, label, color, bg, onPress, delay }: {
+  icon: string; label: string; color: string; bg: string; onPress: () => void; delay: number;
+}) {
+  const scale   = useRef(new Animated.Value(0.85)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const glow    = useRef(new Animated.Value(0)).current;
+  const pressed = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(scale,   { toValue: 1, duration: 500, delay, useNativeDriver: true, easing: Easing.out(Easing.back(1.3)) }),
+      Animated.timing(opacity, { toValue: 1, duration: 400, delay, useNativeDriver: true }),
+    ]).start();
+
+    const glowAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glow, { toValue: 1, duration: 2000, useNativeDriver: false, easing: Easing.inOut(Easing.sin) }),
+        Animated.timing(glow, { toValue: 0, duration: 2000, useNativeDriver: false, easing: Easing.inOut(Easing.sin) }),
+      ])
+    );
+    glowAnim.start();
+    return () => glowAnim.stop();
+  }, []);
+
+  const handlePressIn = () => {
+    Animated.spring(pressed, { toValue: 0.92, useNativeDriver: true, speed: 40 }).start();
+  };
+  const handlePressOut = () => {
+    Animated.spring(pressed, { toValue: 1, useNativeDriver: true, speed: 20 }).start();
+    lightImpact();
+    onPress();
+  };
+
+  const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.08, 0.22] });
+
+  return (
+    <Animated.View style={{ flex: 1, opacity, transform: [{ scale }, { scale: pressed }] }}>
+      <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut}>
+        <View style={[catTileStyles.tile, { backgroundColor: bg, borderColor: color + '40' }]}>
+          {/* Glow blob */}
+          <Animated.View style={[catTileStyles.glow, { backgroundColor: color, opacity: glowOpacity }]} />
+          <MaterialCommunityIcons name={icon as any} size={24} color={color} />
+          <Text style={[catTileStyles.label, { color }]}>{label}</Text>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+const catTileStyles = StyleSheet.create({
+  tile:  { alignItems: 'center', paddingVertical: 16, borderRadius: 18, gap: 6, borderWidth: 1.5, overflow: 'hidden' },
+  glow:  { position: 'absolute', width: 60, height: 60, borderRadius: 30, top: -10, alignSelf: 'center' },
+  label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
+});
+
+// ─── Section Header ───────────────────────────────────────────────────────────
+
+function SectionHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
+  const { theme } = useTheme();
+  const titleSlide = useRef(new Animated.Value(-10)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(titleSlide,   { toValue: 0, duration: 400, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+      Animated.timing(titleOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={[sectionHeaderStyles.row, { opacity: titleOpacity, transform: [{ translateX: titleSlide }] }]}>
+      <LinearGradient colors={[theme.colors.accent, theme.colors.gradient[1]]} style={sectionHeaderStyles.bar} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} />
+      <Text style={[sectionHeaderStyles.title, { color: theme.colors.text, fontFamily: theme.fontFamily.bold }]}>
+        {title}
+      </Text>
+      {action && (
+        <Pressable onPress={onAction}>
+          <Text style={[sectionHeaderStyles.action, { color: theme.colors.accent, fontFamily: theme.fontFamily.medium }]}>
+            {action}
+          </Text>
+        </Pressable>
+      )}
+    </Animated.View>
+  );
+}
+const sectionHeaderStyles = StyleSheet.create({
+  row:    { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
+  bar:    { width: 4, height: 20, borderRadius: 2 },
+  title:  { flex: 1, fontSize: 17 },
+  action: { fontSize: 13 },
+});
+
+// ─── Animated Weather Card ────────────────────────────────────────────────────
+
+function WeatherCard({ loading, weather, weatherInfo, temp, wind }: {
+  loading: boolean; weather: any; weatherInfo: any; temp: number | null; wind: number;
+}) {
+  const { theme } = useTheme();
+  const tempScale  = useRef(new Animated.Value(0.6)).current;
+  const tempOpacity = useRef(new Animated.Value(0)).current;
+  const cardSlide  = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    if (!loading && weather) {
+      Animated.parallel([
+        Animated.spring(tempScale,   { toValue: 1, useNativeDriver: true, speed: 12, bounciness: 8 }),
+        Animated.timing(tempOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(cardSlide,   { toValue: 0, duration: 500, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
+      ]).start();
+    }
+  }, [loading, weather]);
+
+  return (
+    <View style={[wStyles.card, { borderColor: theme.colors.border }, theme.shadows.card]}>
+      <LinearGradient
+        colors={[...theme.colors.gradient]}
+        style={wStyles.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        {/* Decorative blobs */}
+        <View style={[wStyles.blob, { top: -30, left: -20, backgroundColor: 'rgba(255,255,255,0.08)', width: 120, height: 120, borderRadius: 60 }]} />
+        <View style={[wStyles.blob, { bottom: -20, right: -10, backgroundColor: 'rgba(255,255,255,0.06)', width: 100, height: 100, borderRadius: 50 }]} />
+
+        {loading ? (
+          <View style={wStyles.loadingRow}>
+            <ShimmerSkeleton width={56} height={56} style={{ borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.25)' }} />
+            <View style={{ gap: 10, flex: 1, alignItems: 'flex-end' }}>
+              <ShimmerSkeleton width={100} height={42} style={{ backgroundColor: 'rgba(255,255,255,0.25)' }} />
+              <ShimmerSkeleton width={70} height={14} style={{ backgroundColor: 'rgba(255,255,255,0.2)' }} />
+            </View>
+          </View>
+        ) : weather ? (
+          <Animated.View style={[wStyles.content, { opacity: tempOpacity, transform: [{ translateY: cardSlide }] }]}>
+            <View style={wStyles.left}>
+              <PulsingWeatherIcon name={weatherInfo?.icon ?? 'weather-partly-cloudy'} size={52} color="rgba(255,255,255,0.95)" />
+              <Text style={wStyles.condition}>{weatherInfo?.label}</Text>
+            </View>
+            <Animated.View style={[wStyles.right, { transform: [{ scale: tempScale }], opacity: tempOpacity }]}>
+              <Text style={wStyles.temp}>{temp}°</Text>
+              <Text style={wStyles.wind}>💨 {wind} km/h</Text>
+              <Text style={wStyles.location}>New York, US</Text>
+            </Animated.View>
+          </Animated.View>
+        ) : (
+          <View style={wStyles.loadingRow}>
+            <MaterialCommunityIcons name="wifi-off" size={36} color="rgba(255,255,255,0.6)" />
+            <Text style={wStyles.loadingText}>Weather unavailable</Text>
+          </View>
+        )}
+      </LinearGradient>
+    </View>
+  );
+}
+const wStyles = StyleSheet.create({
+  card:       { borderRadius: 24, overflow: 'hidden', borderWidth: 1 },
+  gradient:   { padding: 22, borderRadius: 24, overflow: 'hidden' },
+  blob:       { position: 'absolute' },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10 },
+  loadingText: { color: 'rgba(255,255,255,0.7)', fontSize: 14 },
+  content:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  left:       { alignItems: 'center', gap: 2 },
+  condition:  { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
+  right:      { alignItems: 'flex-end' },
+  temp:       { fontSize: 62, fontWeight: '900', color: '#FFFFFF', lineHeight: 66, letterSpacing: -2 },
+  wind:       { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 4, fontWeight: '500' },
+  location:   { color: 'rgba(255,255,255,0.65)', fontSize: 12, marginTop: 2 },
+});
+
+// ─── Animated Quote Card ──────────────────────────────────────────────────────
+
+function QuoteCard({ loading, quote, theme }: { loading: boolean; quote: any; theme: any }) {
+  const opacity    = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(12)).current;
+  const quoteIconScale = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!loading) {
+      Animated.sequence([
+        Animated.spring(quoteIconScale, { toValue: 1, useNativeDriver: true, speed: 10, bounciness: 12 }),
+        Animated.parallel([
+          Animated.timing(opacity,    { toValue: 1, duration: 500, useNativeDriver: true }),
+          Animated.timing(translateY, { toValue: 0, duration: 500, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
+        ]),
+      ]).start();
+    }
+  }, [loading]);
+
+  return (
+    <View style={[qStyles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, theme.shadows.card]}>
+      {/* Accent strip */}
+      <LinearGradient colors={[theme.colors.accent + '30', 'transparent']} style={qStyles.strip} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} />
+      <Animated.View style={{ transform: [{ scale: quoteIconScale }] }}>
+        <MaterialCommunityIcons name="format-quote-open" size={32} color={theme.colors.accent} style={{ marginBottom: 6 }} />
+      </Animated.View>
+      {loading ? (
+        <View style={{ gap: 10 }}>
+          <ShimmerSkeleton width="100%" height={14} />
+          <ShimmerSkeleton width="85%" height={14} />
+          <ShimmerSkeleton width="60%" height={14} />
+          <ShimmerSkeleton width="40%" height={12} style={{ marginTop: 4 }} />
+        </View>
+      ) : (
+        <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+          <Text style={[qStyles.text, { color: theme.colors.text, fontFamily: theme.fontFamily.regular }]}>
+            {quote ? quote.content : '"The only way to do great work is to love what you do."'}
+          </Text>
+          {quote && (
+            <Text style={[qStyles.author, { color: theme.colors.accent, fontFamily: theme.fontFamily.semiBold }]}>
+              — {quote.author}
+            </Text>
+          )}
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+const qStyles = StyleSheet.create({
+  card:   { borderRadius: 22, padding: 20, borderWidth: 1, overflow: 'hidden' },
+  strip:  { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, borderRadius: 2 },
+  text:   { fontSize: 16, lineHeight: 26, marginBottom: 12 },
+  author: { fontSize: 13 },
+});
+
+// ─── Animated Header Logo ─────────────────────────────────────────────────────
+
+function AnimatedLogo() {
+  const scale = useRef(new Animated.Value(0.5)).current;
+  const rotate = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scale,   { toValue: 1, useNativeDriver: true, speed: 8, bounciness: 14 }),
+      Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(rotate,  { toValue: 1, duration: 600, useNativeDriver: true, easing: Easing.out(Easing.back(1.5)) }),
+    ]).start();
+  }, []);
+
+  const rotation = rotate.interpolate({ inputRange: [0, 1], outputRange: ['-45deg', '0deg'] });
+
+  return (
+    <Animated.View style={[styles.logoIcon, { opacity, transform: [{ scale }, { rotate: rotation }] }]}>
+      <MaterialCommunityIcons name="lightning-bolt" size={20} color="#FFFFFF" />
+    </Animated.View>
+  );
+}
+
+// ─── Animated Greeting ────────────────────────────────────────────────────────
+
+function AnimatedGreeting({ greeting }: { greeting: string }) {
+  const words = greeting.split(' ');
+  const anims = useRef(words.map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    const animations = anims.map((anim, i) =>
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 400,
+        delay: 200 + i * 80,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      })
+    );
+    Animated.parallel(animations).start();
+  }, []);
+
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
+      {words.map((word, i) => {
+        const translateY = anims[i].interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+        return (
+          <Animated.Text
+            key={i}
+            style={[styles.greeting, { opacity: anims[i], transform: [{ translateY }] }]}
+          >
+            {word}
+          </Animated.Text>
+        );
+      })}
+    </View>
+  );
+}
+
+// ─── Main Screen ─────────────────────────────────────────────────────────────
+
+export default function DailyScreen() {
+  const { theme, isDark } = useTheme();
+  const insets  = useSafeAreaInsets();
+  const router  = useRouter();
+  const { pinnedFeatures, recentFeatures, addRecent, togglePin } = useFavoritesStore();
+
+  const [search, setSearch]        = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [weather, setWeather]      = useState<any>(null);
+  const [quote, setQuote]          = useState<{ content: string; author: string } | null>(null);
+  const [loading, setLoading]      = useState(true);
+
+  const searchBarScale   = useRef(new Animated.Value(1)).current;
+  const scrollY          = useRef(new Animated.Value(0)).current;
+  const subGreetingOpacity = useRef(new Animated.Value(0)).current;
+  const subGreetingY       = useRef(new Animated.Value(10)).current;
+
+  const loadData = useCallback(async () => {
+    try {
+      const [w, q] = await Promise.allSettled([fetchWeather(40.71, -74.01), fetchQuote()]);
+      if (w.status === 'fulfilled') setWeather(w.value);
+      if (q.status === 'fulfilled') setQuote(q.value);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(subGreetingOpacity, { toValue: 1, duration: 600, delay: 500, useNativeDriver: true }),
+      Animated.timing(subGreetingY, { toValue: 0, duration: 600, delay: 500, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+    ]).start();
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const navigate = (route: string, id: string) => {
+    addRecent(id);
+    router.push(route as any);
+  };
+
+  const onSearchFocus = () => {
+    Animated.spring(searchBarScale, { toValue: 1.02, useNativeDriver: true, speed: 40 }).start();
+  };
+  const onSearchBlur = () => {
+    Animated.spring(searchBarScale, { toValue: 1, useNativeDriver: true, speed: 40 }).start();
+  };
+
+  const filteredFeatures = search.trim() ? searchFeatures(search) : null;
+  const pinnedItems  = pinnedFeatures.map(getFeatureById).filter(Boolean);
+  const recentItems  = recentFeatures.slice(0, 8).map(getFeatureById).filter(Boolean);
+
+  const weatherInfo = weather ? getWeatherInfo(weather.current?.weathercode ?? 0) : null;
+  const temp        = weather ? Math.round(weather.current?.temperature_2m ?? 0) : null;
+  const wind        = weather?.current?.wind_speed_10m ?? 0;
+
+  // Particle colors from gradient
+  const particleColors = [
+    'rgba(255,255,255,0.6)',
+    'rgba(255,255,255,0.4)',
+    'rgba(255,220,255,0.5)',
+    'rgba(220,255,255,0.4)',
+    'rgba(255,200,220,0.5)',
+  ];
+
+  // Category tiles config
+  const categoryTiles = [
+    { id: 'tools',     label: 'Tools',     icon: 'toolbox',      route: '/(tabs)/tools',     cat: 'tools'     as const },
+    { id: 'finance',   label: 'Finance',   icon: 'chart-line',   route: '/(tabs)/finance',   cat: 'finance'   as const },
+    { id: 'wellness',  label: 'Wellness',  icon: 'heart-pulse',  route: '/(tabs)/wellness',  cat: 'wellness'  as const },
+    { id: 'utilities', label: 'More',      icon: 'apps',         route: '/(tabs)/utilities', cat: 'utilities' as const },
+  ];
+
+  return (
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
+        stickyHeaderIndices={[]}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+      >
+        {/* ── Gradient Header ── */}
+        <LinearGradient
+          colors={[...theme.colors.gradient]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.header, { paddingTop: insets.top + 16 }]}
+        >
+          {/* Floating particles */}
+          {[...Array(8)].map((_, i) => (
+            <FloatingParticle
+              key={i}
+              delay={i * 400}
+              x={(SCREEN_WIDTH / 8) * i + Math.sin(i) * 10}
+              size={6 + (i % 3) * 3}
+              color={particleColors[i % particleColors.length]}
+            />
+          ))}
+
+          {/* Logo row */}
+          <View style={styles.headerTop}>
+            <View style={styles.logoRow}>
+              <AnimatedLogo />
+              <Animated.Text
+                style={[styles.logoText, {
+                  opacity: subGreetingOpacity,
+                  transform: [{ translateX: subGreetingY }],
+                }]}
+              >
+                PockIt
+              </Animated.Text>
+            </View>
+            <Pressable
+              onPress={() => { lightImpact(); router.push('/settings' as any); }}
+              style={styles.settingsBtn}
+            >
+              <MaterialCommunityIcons name="cog-outline" size={22} color="rgba(255,255,255,0.85)" />
+            </Pressable>
+          </View>
+
+          {/* Greeting */}
+          <AnimatedGreeting greeting={getGreeting()} />
+          <Animated.Text style={[styles.subGreeting, { opacity: subGreetingOpacity, transform: [{ translateY: subGreetingY }] }]}>
+            What would you like to do?
+          </Animated.Text>
+
+          {/* Search bar */}
+          <Animated.View
+            style={[
+              styles.searchBar,
+              { backgroundColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.92)' },
+              { transform: [{ scale: searchBarScale }] },
+            ]}
+          >
+            <MaterialCommunityIcons name="magnify" size={20} color={isDark ? 'rgba(255,255,255,0.6)' : '#8888AA'} />
+            <TextInput
+              style={[styles.searchInput, { color: isDark ? '#FFFFFF' : theme.colors.text }]}
+              placeholder="Search 40+ features..."
+              placeholderTextColor={isDark ? 'rgba(255,255,255,0.5)' : '#9090AA'}
+              value={search}
+              onChangeText={setSearch}
+              onFocus={onSearchFocus}
+              onBlur={onSearchBlur}
+              returnKeyType="search"
+            />
+            {search.length > 0 && (
+              <Pressable onPress={() => setSearch('')}>
+                <MaterialCommunityIcons name="close-circle" size={18} color={isDark ? 'rgba(255,255,255,0.5)' : '#9090AA'} />
+              </Pressable>
+            )}
+          </Animated.View>
+        </LinearGradient>
+
+        <View style={styles.body}>
+          {/* ── Search Results ── */}
+          {filteredFeatures ? (
+            <AnimatedCard delay={0}>
+              <SectionHeader title={`Results for "${search}"`} />
+              {filteredFeatures.length === 0 ? (
+                <View style={styles.emptySearch}>
+                  <MaterialCommunityIcons name="magnify-close" size={48} color={theme.colors.textTertiary} />
+                  <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No features found</Text>
+                </View>
+              ) : (
+                <View style={styles.grid}>
+                  {filteredFeatures.map((f) => (
+                    <View key={f.id} style={styles.gridItem}>
+                      <FeatureCard
+                        icon={f.icon}
+                        title={f.name}
+                        description={f.description}
+                        category={f.category as any}
+                        onPress={() => navigate(f.route, f.id)}
+                        onLongPress={() => togglePin(f.id)}
+                        isPinned={pinnedFeatures.includes(f.id)}
+                      />
+                    </View>
+                  ))}
+                </View>
+              )}
+            </AnimatedCard>
+          ) : (
+            <>
+              {/* ── Category Quick Access ── */}
+              <View style={styles.catRow}>
+                {categoryTiles.map((cat, i) => {
+                  const colors = isDark ? CATEGORY_COLORS[cat.cat].dark : CATEGORY_COLORS[cat.cat].light;
+                  return (
+                    <AnimatedCatTile
+                      key={cat.id}
+                      icon={cat.icon}
+                      label={cat.label}
+                      color={colors.icon}
+                      bg={colors.bg}
+                      delay={i * 60}
+                      onPress={() => router.push(cat.route as any)}
+                    />
+                  );
+                })}
+              </View>
+
+              {/* ── Pinned ── */}
+              {pinnedItems.length > 0 && (
+                <AnimatedCard delay={100} style={styles.section}>
+                  <SectionHeader title="Pinned" />
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                    {pinnedItems.map((f) => (
+                      <FeatureCard
+                        key={f!.id}
+                        icon={f!.icon}
+                        title={f!.name}
+                        size="small"
+                        isPinned
+                        category={f!.category as any}
+                        onPress={() => navigate(f!.route, f!.id)}
+                        onLongPress={() => togglePin(f!.id)}
+                      />
+                    ))}
+                  </ScrollView>
+                </AnimatedCard>
+              )}
+
+              {/* ── Recent ── */}
+              {recentItems.length > 0 && (
+                <AnimatedCard delay={150} style={styles.section}>
+                  <SectionHeader title="Recent" />
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                    {recentItems.map((f) => (
+                      <FeatureCard
+                        key={f!.id}
+                        icon={f!.icon}
+                        title={f!.name}
+                        size="small"
+                        category={f!.category as any}
+                        onPress={() => navigate(f!.route, f!.id)}
+                      />
+                    ))}
+                  </ScrollView>
+                </AnimatedCard>
+              )}
+
+              {/* ── Weather ── */}
+              <AnimatedCard delay={200} style={styles.section}>
+                <SectionHeader title="Weather" />
+                <WeatherCard
+                  loading={loading}
+                  weather={weather}
+                  weatherInfo={weatherInfo}
+                  temp={temp}
+                  wind={wind}
+                />
+              </AnimatedCard>
+
+              {/* ── Daily Quote ── */}
+              <AnimatedCard delay={280} style={styles.section}>
+                <SectionHeader title="Daily Quote" />
+                <QuoteCard loading={loading} quote={quote} theme={theme} />
+              </AnimatedCard>
+
+              {/* ── Explore All ── */}
+              <AnimatedCard delay={360} style={styles.section}>
+                <SectionHeader
+                  title="Explore All"
+                  action="See all"
+                  onAction={() => router.push('/(tabs)/tools' as any)}
+                />
+                <View style={styles.grid}>
+                  {categories.slice(1).map((cat, i) => (
+                    <AnimatedCard key={cat.id} delay={400 + i * 60} style={styles.gridItem}>
+                      <FeatureCard
+                        icon={cat.icon}
+                        title={cat.label}
+                        description={cat.description}
+                        category={cat.id as any}
+                        onPress={() => router.push(`/(tabs)/${cat.id}` as any)}
+                      />
+                    </AnimatedCard>
+                  ))}
+                </View>
+              </AnimatedCard>
+            </>
+          )}
+
+          <View style={{ height: 100 }} />
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  root:   { flex: 1 },
+  header: { paddingHorizontal: 20, paddingBottom: 28, overflow: 'hidden' },
+
+  headerTop:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
+  logoRow:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  logoIcon:    { width: 34, height: 34, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.28)', alignItems: 'center', justifyContent: 'center' },
+  logoText:    { fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.3 },
+  settingsBtn: { width: 38, height: 38, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
+
+  greeting:    { fontSize: 27, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  subGreeting: { fontSize: 14, color: 'rgba(255,255,255,0.72)', marginTop: 2, marginBottom: 18 },
+
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === 'ios' ? 13 : 10,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.35)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  searchInput: { flex: 1, fontSize: 15 },
+
+  body:    { paddingHorizontal: 16, paddingTop: 22 },
+  section: { marginBottom: 26 },
+
+  catRow:  { flexDirection: 'row', gap: 10, marginBottom: 26 },
+
+  grid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  gridItem: { width: '47%' },
+
+  emptySearch: { alignItems: 'center', paddingVertical: 48, gap: 8 },
+  emptyText:   { fontSize: 15 },
+});

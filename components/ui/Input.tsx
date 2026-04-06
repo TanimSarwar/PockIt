@@ -1,0 +1,86 @@
+import React from 'react';
+import { TextInput, TextInputProps, StyleSheet, Platform, View, ViewStyle, TextStyle, Text } from 'react-native';
+import { useTheme } from '../../store/theme';
+
+interface PockItInputProps extends TextInputProps {
+  containerStyle?: ViewStyle;
+  inputStyle?: TextStyle;
+  icon?: React.ReactNode;
+  label?: string;
+}
+
+export const PockItInput: React.FC<PockItInputProps> = ({ 
+  containerStyle, 
+  inputStyle, 
+  icon,
+  label,
+  ...props 
+}) => {
+  const { theme } = useTheme();
+
+  return (
+    <View style={containerStyle}>
+      {label && (
+        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+          {label}
+        </Text>
+      )}
+      <View style={[
+        styles.inputWrapper, 
+        { 
+          backgroundColor: theme.colors.surfaceSecondary,
+          borderRadius: 16,
+        }
+      ]}>
+        {icon && <View style={styles.iconContainer}>{icon}</View>}
+        <TextInput
+          {...props}
+          placeholderTextColor={theme.colors.textTertiary}
+          selectionColor={theme.colors.accent}
+          underlineColorAndroid="transparent"
+          style={[
+            styles.input,
+            { 
+              color: theme.colors.text,
+            },
+            inputStyle
+          ]}
+        />
+      </View>
+    </View>
+  );
+};
+
+export const Input = PockItInput;
+
+const styles = StyleSheet.create({
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+    marginLeft: 4,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    height: 48,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  iconContainer: {
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
+    height: '100%',
+    fontSize: 16,
+    borderWidth: 0,
+    ...Platform.select({
+      web: {
+        outlineStyle: 'none',
+        borderColor: 'transparent',
+      } as any,
+    }),
+  },
+});
