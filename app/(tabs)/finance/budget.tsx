@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, FlatList, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../../store/theme';
-import { useFinanceStore, type BudgetEntry } from '../../../store/finance';
+import { useFinanceStore } from '../../../store/finance';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Card, Button, Input, Modal } from '../../../components/ui';
 import { lightImpact } from '../../../lib/haptics';
@@ -43,6 +43,7 @@ export default function BudgetScreen() {
       category,
       description: description || category,
       type: isIncome ? 'income' : 'expense',
+      date: new Date().toISOString(),
     });
     setAmount('');
     setDescription('');
@@ -58,15 +59,16 @@ export default function BudgetScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScreenHeader
-        title="Budget Tracker"
+      <ScreenHeader 
+        category="FINANCE / PLANNING" 
+        title="Budget Planner" 
         rightAction={
           <Pressable onPress={() => setShowModal(true)} accessibilityLabel="Add entry">
             <MaterialCommunityIcons name="plus-circle" size={28} color={theme.colors.accent} />
           </Pressable>
         }
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Summary */}
         <Card>
           <View style={styles.summaryRow}>

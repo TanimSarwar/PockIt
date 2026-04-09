@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../../store/theme';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Card } from '../../../components/ui';
-import { lightImpact, notificationSuccess } from '../../../lib/haptics';
+import { lightImpact, mediumImpact, notificationSuccess } from '../../../lib/haptics';
 
 function rgbToHex(r: number, g: number, b: number): string {
   return '#' + [r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('').toUpperCase();
@@ -63,7 +63,10 @@ export default function ColorPickerScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScreenHeader title="Color Picker" />
+      <ScreenHeader 
+         category="TOOLS / DESIGN" 
+         title="Color Picker" 
+      />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.preview, { backgroundColor: hex, borderRadius: 16 }]} />
 

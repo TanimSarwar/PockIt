@@ -4,17 +4,27 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Animated,
-  Easing,
-  Dimensions,
   ScrollView,
+  Dimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  withSequence,
+  Easing,
+  cancelAnimation,
+  interpolate,
+} from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../../store/theme';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { lightImpact, mediumImpact, selectionFeedback } from '../../../lib/haptics';
 
 const { width: SW } = Dimensions.get('window');
+const CARD_W = (SW - 44) / 2;
 
 // ─── Exercise Definitions ───────────────────────────────────────────────────
 
@@ -26,17 +36,23 @@ interface BreathPhase {
 interface BreathExercise {
   id: string;
   name: string;
+  pattern: string;
   description: string;
   phases: BreathPhase[];
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  emoji: string;
+  color: string;
+  bg: string;
 }
 
 const EXERCISES: BreathExercise[] = [
   {
     id: 'box',
-    name: 'Box Breathing',
-    description: '4-4-4-4 pattern used by Navy SEALs',
-    icon: 'square-outline',
+    name: 'Box Breath',
+    pattern: '4-4-4-4',
+    description: '4s In • 4s Hold • 4s Out • 4s Hold',
+    emoji: '📦',
+    color: '#3B82F6',
+    bg: '#DDEEFF',
     phases: [
       { label: 'Breathe In', duration: 4 },
       { label: 'Hold', duration: 4 },
@@ -46,9 +62,12 @@ const EXERCISES: BreathExercise[] = [
   },
   {
     id: '478',
-    name: '4-7-8 Technique',
-    description: 'Relaxing breath for sleep and anxiety',
-    icon: 'moon-waning-crescent',
+    name: '4-7-8 Relax',
+    pattern: '4-7-8',
+    description: '4s In • 7s Hold • 8s Out',
+    emoji: '🌙',
+    color: '#8B5CF6',
+    bg: '#EDE9FE',
     phases: [
       { label: 'Breathe In', duration: 4 },
       { label: 'Hold', duration: 7 },
@@ -57,37 +76,116 @@ const EXERCISES: BreathExercise[] = [
   },
   {
     id: 'deep',
-    name: 'Deep Breathing',
-    description: 'Simple 4-6 pattern for beginners',
-    icon: 'weather-windy',
+    name: 'Deep Calm',
+    pattern: '4-6',
+    description: '4s In • 6s Out Pattern',
+    emoji: '🌬️',
+    color: '#06B6D4',
+    bg: '#CFFAFE',
     phases: [
       { label: 'Breathe In', duration: 4 },
       { label: 'Breathe Out', duration: 6 },
     ],
   },
+  {
+    id: 'clear',
+    name: 'Clear Mind',
+    pattern: '5-5',
+    description: 'Coherent 5s Breathing',
+    emoji: '✨',
+    color: '#22C55E',
+    bg: '#DCFCE7',
+    phases: [
+      { label: 'Breathe In', duration: 5 },
+      { label: 'Breathe Out', duration: 5 },
+    ],
+  },
 ];
 
-// ─── Colors ─────────────────────────────────────────────────────────────────
+// ─── Pulse dot for active state ──────────────────────────────────────────────
 
-const CALM_COLORS = {
-  inhale: '#60A5FA',
-  hold: '#34D399',
-  exhale: '#A78BFA',
-  holdAfter: '#FBBF24',
-};
-
-function getPhaseColor(label: string): string {
-  if (label === 'Breathe In') return CALM_COLORS.inhale;
-  if (label === 'Hold') return CALM_COLORS.hold;
-  if (label === 'Breathe Out') return CALM_COLORS.exhale;
-  return CALM_COLORS.holdAfter;
+function PulseDot({ color }: { color: string }) {
+  const o = useSharedValue(1);
+  useEffect(() => {
+    o.value = withRepeat(withSequence(
+      withTiming(0.3, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+      withTiming(1, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+    ), -1, false);
+    return () => cancelAnimation(o);
+  }, []);
+  const s = useAnimatedStyle(() => ({ opacity: o.value }));
+  return (
+    <Animated.View style={[{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }, s]} />
+  );
 }
 
-// ─── Component ──────────────────────────────────────────────────────────────
+// ─── Exercise Card ───────────────────────────────────────────────────────────
+
+function ExerciseCard({ ex, isActive, isRunning, onPress, theme }: { 
+  ex: BreathExercise; 
+  isActive: boolean; 
+  isRunning: boolean;
+  onPress: () => void; 
+  theme: any 
+}) {
+  const scale = useSharedValue(1);
+  const bounce = useSharedValue(0);
+
+  useEffect(() => {
+    if (isActive && isRunning) {
+      bounce.value = withRepeat(
+        withSequence(
+          withTiming(-4, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: 400, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      );
+    } else {
+      bounce.value = withTiming(0);
+    }
+  }, [isActive, isRunning]);
+
+  const pressIn = () => { scale.value = withTiming(0.95, { duration: 100 }); };
+  const pressOut = () => { scale.value = withTiming(1, { duration: 150 }); onPress(); };
+
+  const aStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const bounceStyle = useAnimatedStyle(() => ({ transform: [{ translateY: bounce.value }] }));
+
+  return (
+    <Pressable onPressIn={pressIn} onPressOut={pressOut}>
+      <Animated.View style={[sc.card, { backgroundColor: theme.colors.surface }, isActive && { borderColor: ex.color, borderWidth: 2 }, aStyle]}>
+        <View style={[sc.playBtn, isActive ? { backgroundColor: ex.color } : { backgroundColor: theme.colors.surfaceTertiary }]}>
+          {isActive && isRunning
+            ? <PulseDot color="#fff" />
+            : <MaterialCommunityIcons name={isActive ? "play" : "plus"} size={12} color={isActive ? "#fff" : theme.colors.textTertiary} />
+          }
+        </View>
+        <Animated.View style={[sc.iconWrap, bounceStyle]}>
+          <Text style={sc.emoji}>{ex.emoji}</Text>
+        </Animated.View>
+        <View style={sc.info}>
+          <Text style={[sc.name, { color: theme.colors.text }]} numberOfLines={1}>{ex.name}</Text>
+          <Text style={[sc.tags, { color: theme.colors.textTertiary }]} numberOfLines={1}>{ex.pattern} • {ex.id.toUpperCase()}</Text>
+        </View>
+      </Animated.View>
+    </Pressable>
+  );
+}
+const sc = StyleSheet.create({
+  card: { width: CARD_W, borderRadius: 16, padding: 12, gap: 4, borderWidth: 1.5, borderColor: 'transparent', elevation: 2 },
+  iconWrap: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  emoji: { fontSize: 24 },
+  info: { gap: 0 },
+  name: { fontSize: 13, fontWeight: '700' },
+  tags: { fontSize: 10, fontWeight: '500' },
+  playBtn: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', position: 'absolute', top: 8, right: 8, zIndex: 10 },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function BreathingScreen() {
   const { theme } = useTheme();
-  const router = useRouter();
   
   const [selectedExercise, setSelectedExercise] = useState<BreathExercise>(EXERCISES[0]);
   const [isRunning, setIsRunning] = useState(false);
@@ -96,55 +194,29 @@ export default function BreathingScreen() {
   const [roundCount, setRoundCount] = useState(0);
   const [sessionSeconds, setSessionSeconds] = useState(0);
 
-  const circleScale = useRef(new Animated.Value(0.6)).current;
-  const circleOpacity = useRef(new Animated.Value(0.4)).current;
+  const breathProgress = useSharedValue(0); 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const currentPhase = selectedExercise.phases[phaseIndex];
 
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      animRef.current?.stop();
     };
   }, []);
 
-  const animateCircle = useCallback((phase: BreathPhase) => {
-    animRef.current?.stop();
+  const animatePhase = useCallback((phase: BreathPhase) => {
+    let toValue = 0;
+    if (phase.label === 'Breathe In') toValue = 1;
+    else if (phase.label === 'Breathe Out') toValue = 0;
+    else if (phase.label === 'Hold' && breathProgress.value > 0.5) toValue = 1;
+    else toValue = 0;
 
-    let toScale = 0.6;
-    let toOpacity = 0.4;
-
-    if (phase.label === 'Breathe In') {
-      toScale = 1.1;
-      toOpacity = 0.9;
-    } else if (phase.label === 'Hold') {
-      toScale = 1.1;
-      toOpacity = 0.7;
-    } else if (phase.label === 'Breathe Out') {
-      toScale = 0.6;
-      toOpacity = 0.4;
-    }
-
-    const anim = Animated.parallel([
-      Animated.timing(circleScale, {
-        toValue: toScale,
-        duration: phase.duration * 1000,
-        easing: phase.label === 'Hold' ? Easing.linear : Easing.bezier(0.42, 0, 0.58, 1),
-        useNativeDriver: true,
-      }),
-      Animated.timing(circleOpacity, {
-        toValue: toOpacity,
-        duration: phase.duration * 1000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    ]);
-
-    animRef.current = anim;
-    anim.start();
-  }, [circleScale, circleOpacity]);
+    breathProgress.value = withTiming(toValue, {
+      duration: phase.duration * 1000,
+      easing: Easing.bezier(0.42, 0, 0.58, 1),
+    });
+  }, []);
 
   const startExercise = useCallback(() => {
     mediumImpact();
@@ -155,7 +227,7 @@ export default function BreathingScreen() {
     setSessionSeconds(0);
 
     const firstPhase = selectedExercise.phases[0];
-    animateCircle(firstPhase);
+    animatePhase(firstPhase);
 
     let currentPhaseIdx = 0;
     let currentTick = 0;
@@ -180,11 +252,11 @@ export default function BreathingScreen() {
         }
         currentTick = 0;
         setPhaseIndex(currentPhaseIdx);
-        animateCircle(phases[currentPhaseIdx]);
+        animatePhase(phases[currentPhaseIdx]);
       }
       setPhaseTime(currentTick);
     }, 1000);
-  }, [selectedExercise, animateCircle]);
+  }, [selectedExercise, animatePhase]);
 
   const pauseExercise = useCallback(() => {
     lightImpact();
@@ -193,7 +265,6 @@ export default function BreathingScreen() {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    animRef.current?.stop();
   }, []);
 
   const resetExercise = useCallback(() => {
@@ -203,14 +274,12 @@ export default function BreathingScreen() {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    animRef.current?.stop();
     setPhaseIndex(0);
     setPhaseTime(0);
     setRoundCount(0);
     setSessionSeconds(0);
-    circleScale.setValue(0.6);
-    circleOpacity.setValue(0.4);
-  }, [circleScale, circleOpacity]);
+    breathProgress.value = withTiming(0);
+  }, []);
 
   const selectExercise = (ex: BreathExercise) => {
     if (isRunning) return;
@@ -225,109 +294,85 @@ export default function BreathingScreen() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const phaseColor = currentPhase ? getPhaseColor(currentPhase.label) : theme.colors.accent;
+  const animatedCircleStyle = useAnimatedStyle(() => {
+    const scale = interpolate(breathProgress.value, [0, 1], [0.8, 1.2]);
+    const opacity = interpolate(breathProgress.value, [0, 1], [0.6, 1]);
+    return {
+      transform: [{ scale }],
+      opacity,
+    };
+  });
+
+  const activeColor = selectedExercise.color;
 
   return (
-    <View style={[s.container, { backgroundColor: theme.colors.background }]}>
-      {/* ── Header ── */}
-      <View style={s.pageHead}>
-        <View style={s.titleRow}>
-          <Pressable 
-            onPress={() => router.replace('/(tabs)/wellness')} 
-            style={[s.backBtn, { backgroundColor: theme.colors.surfaceTertiary }]}
-          >
-            <MaterialCommunityIcons name="arrow-left" size={20} color={theme.colors.accent} />
-          </Pressable>
-          <Text style={[s.pageTitle, { color: theme.colors.text }]}>Breathing Exercise</Text>
-        </View>
-        <Text style={[s.pageSub, { color: theme.colors.textSecondary }]}>Find your center with guided techniques.</Text>
-      </View>
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+      <ScreenHeader
+        category="WELLNESS / BREATH"
+        title="Breathing"
+      />
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        {/* Technique Selector */}
-        <View style={s.techniqueList}>
-          {EXERCISES.map((ex) => {
-            const isSelected = ex.id === selectedExercise.id;
-            return (
-              <Pressable
-                key={ex.id}
-                onPress={() => selectExercise(ex)}
-                style={[
-                  s.techCard,
-                  { backgroundColor: theme.colors.surface },
-                  isSelected && { borderColor: theme.colors.accent, borderWidth: 2 }
-                ]}
-              >
-                <View style={[s.techIconWrap, { backgroundColor: isSelected ? theme.colors.accent : theme.colors.surfaceTertiary }]}>
-                  <MaterialCommunityIcons name={ex.icon} size={20} color={isSelected ? '#FFF' : theme.colors.textTertiary} />
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <LinearGradient colors={theme.palette.gradient as any} style={styles.featuredCard}>
+          {isRunning && (
+            <Pressable onPress={resetExercise} style={styles.featuredStopBtn}>
+              <Text style={styles.featuredStopText}>RESET</Text>
+              <MaterialCommunityIcons name="refresh" size={16} color="#FF5252" />
+            </Pressable>
+          )}
+          
+          <View style={styles.animContainer}>
+             <Animated.View style={[styles.outerCircle, { borderColor: activeColor + '40' }, animatedCircleStyle]}>
+                <View style={[styles.innerCircle, { backgroundColor: activeColor }]}>
+                  <Text style={styles.phaseLabel}>{isRunning ? currentPhase.label.toUpperCase() : 'READY'}</Text>
+                  {isRunning && <Text style={styles.phaseTimer}>{currentPhase.duration - phaseTime}s</Text>}
                 </View>
-                <Text style={[s.techName, { color: isSelected ? theme.colors.accent : theme.colors.text }]}>{ex.name}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+             </Animated.View>
+          </View>
 
-        {/* Breathing Animation Area */}
-        <View style={s.animWrap}>
-          <View style={[s.glowCircle, { backgroundColor: phaseColor, opacity: 0.15 }]} />
-          
-          <Animated.View
-            style={[
-              s.outerCircle,
-              {
-                borderColor: phaseColor + '60',
-                transform: [{ scale: circleScale }],
-                opacity: circleOpacity,
-              },
-            ]}
+          <Pressable
+            onPress={isRunning ? pauseExercise : startExercise}
+            style={styles.featuredPlay}
           >
-            <View style={[s.innerCircle, { backgroundColor: phaseColor }]}>
-              <Text style={s.phaseTxt}>
-                {isRunning || sessionSeconds > 0 ? currentPhase.label : 'Ready'}
-              </Text>
-              {isRunning && (
-                <Text style={s.phaseTimer}>{currentPhase.duration - phaseTime}</Text>
-              )}
-            </View>
-          </Animated.View>
+            <MaterialCommunityIcons name={isRunning ? 'pause' : 'play'} size={18} color={theme.colors.accent} />
+            <Text style={[styles.featuredPlayText, { color: theme.colors.accent }]}>{isRunning ? 'Pause Session' : 'Start Session'}</Text>
+          </Pressable>
+        </LinearGradient>
+
+        <View style={styles.grid}>
+          {EXERCISES.map(ex => (
+            <ExerciseCard 
+              key={ex.id} 
+              ex={ex} 
+              isActive={selectedExercise.id === ex.id} 
+              isRunning={isRunning}
+              onPress={() => selectExercise(ex)} 
+              theme={theme} 
+            />
+          ))}
         </View>
 
-        {/* Description & Stats */}
-        <View style={[s.statsCard, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[s.descTxt, { color: theme.colors.textSecondary }]}>{selectedExercise.description}</Text>
+        <View style={[styles.settingsCard, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>Session Stats</Text>
           
-          <View style={s.divider} />
-
-          <View style={s.statsRow}>
-            <View style={s.statBox}>
-              <Text style={[s.statVal, { color: theme.colors.text }]}>{roundCount}</Text>
-              <Text style={[s.statKey, { color: theme.colors.textTertiary }]}>Rounds</Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>{roundCount}</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textTertiary }]}>ROUNDS</Text>
             </View>
-            <View style={[s.vDivider, { backgroundColor: theme.colors.border }]} />
-            <View style={s.statBox}>
-              <Text style={[s.statVal, { color: theme.colors.text }]}>{formatDuration(sessionSeconds)}</Text>
-              <Text style={[s.statKey, { color: theme.colors.textTertiary }]}>Duration</Text>
+            <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>{formatDuration(sessionSeconds)}</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textTertiary }]}>TOTAL TIME</Text>
             </View>
           </View>
-        </View>
 
-        {/* Controls */}
-        <View style={s.controls}>
-          <Pressable 
-            onPress={resetExercise} 
-            style={[s.subBtn, { backgroundColor: theme.colors.surfaceTertiary }]}
-          >
-            <MaterialCommunityIcons name="refresh" size={24} color={theme.colors.text} />
-          </Pressable>
-
-          <Pressable 
-            onPress={isRunning ? pauseExercise : startExercise} 
-            style={[s.playBtn, { backgroundColor: theme.colors.accent }]}
-          >
-            <MaterialCommunityIcons name={isRunning ? 'pause' : 'play'} size={38} color="#FFF" />
-          </Pressable>
-
-          <View style={{ width: 48 }} />
+          <View style={{ marginTop: 24 }}>
+            <Text style={[styles.settingLabel, { color: theme.colors.textSecondary }]}>TECHNIQUE INFO</Text>
+            <View style={[styles.infoBox, { backgroundColor: theme.colors.surfaceSecondary }]}>
+              <Text style={[styles.infoText, { color: theme.colors.textTertiary }]}>{selectedExercise.description}</Text>
+            </View>
+          </View>
         </View>
 
         <View style={{ height: 100 }} />
@@ -336,69 +381,28 @@ export default function BreathingScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1 },
-  scroll:    { paddingHorizontal: 20, paddingBottom: 100 },
-  pageHead:  { paddingHorizontal: 20, paddingTop: 10, marginBottom: 24 },
-  titleRow:  { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-  backBtn:   { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  pageTitle: { fontSize: 26, fontWeight: '900', letterSpacing: -1 },
-  pageSub:   { fontSize: 14, fontWeight: '500', marginLeft: 48 },
-
-  techniqueList: { flexDirection: 'row', gap: 10, marginBottom: 30 },
-  techCard: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 20,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  techIconWrap: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  techName: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
-
-  animWrap: { height: 320, alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  glowCircle: { position: 'absolute', width: 280, height: 280, borderRadius: 140 },
-  outerCircle: {
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    borderWidth: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  innerCircle: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  phaseTxt: { color: '#FFF', fontSize: 18, fontWeight: '800' },
-  phaseTimer: { color: '#FFF', fontSize: 48, fontWeight: '900', marginTop: -5 },
-
-  statsCard: { borderRadius: 24, padding: 20, marginBottom: 32,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
-  descTxt: { textAlign: 'center', fontSize: 14, fontWeight: '500', marginBottom: 16 },
-  divider: { height: 1, backgroundColor: 'rgba(0,0,0,0.05)', marginBottom: 16 },
-  statsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
-  statBox: { alignItems: 'center' },
-  statVal: { fontSize: 24, fontWeight: '900' },
-  statKey: { fontSize: 12, fontWeight: '600', marginTop: 2 },
-  vDivider: { width: 1, height: 30 },
-
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 30 },
-  subBtn: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  playBtn: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 8 },
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  scroll: { paddingHorizontal: 16, paddingBottom: 40 },
+  featuredCard: { borderRadius: 24, padding: 20, marginBottom: 20, minHeight: 180, justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden' },
+  featuredStopBtn: { position: 'absolute', top: 10, right: 10, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  featuredStopText: { color: '#FF5252', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  animContainer: { height: 140, justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
+  outerCircle: { width: 120, height: 120, borderRadius: 60, borderWidth: 3, padding: 8, justifyContent: 'center', alignItems: 'center' },
+  innerCircle: { width: '100%', height: '100%', borderRadius: 60, justifyContent: 'center', alignItems: 'center', elevation: 4 },
+  phaseLabel: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+  phaseTimer: { color: '#fff', fontSize: 24, fontWeight: '900', marginTop: -2 },
+  featuredPlay: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, gap: 8 },
+  featuredPlayText: { fontSize: 14, fontWeight: '800' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 28 },
+  settingsCard: { borderRadius: 24, padding: 20 },
+  settingsTitle: { fontSize: 18, fontWeight: '800', marginBottom: 20 },
+  statsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', backgroundColor: 'rgba(0,0,0,0.02)', padding: 15, borderRadius: 20 },
+  statItem: { alignItems: 'center' },
+  statValue: { fontSize: 24, fontWeight: '900' },
+  statLabel: { fontSize: 10, fontWeight: '800', marginTop: 4, letterSpacing: 1 },
+  statDivider: { width: 1, height: 30, opacity: 0.1 },
+  settingLabel: { fontSize: 11, fontWeight: '800', marginBottom: 10, letterSpacing: 1 },
+  infoBox: { padding: 15, borderRadius: 16 },
+  infoText: { fontSize: 13, fontWeight: '600', lineHeight: 18, textAlign: 'center' },
 });

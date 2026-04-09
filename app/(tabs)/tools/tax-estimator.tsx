@@ -47,7 +47,10 @@ export default function TaxEstimatorScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScreenHeader title="Tax Estimator" />
+      <ScreenHeader 
+         category="TOOLS / FINANCE" 
+         title="Tax Estimator" 
+      />
       <ScrollView contentContainerStyle={styles.content}>
         <Input label="Annual Income ($)" value={income} onChangeText={setIncome} keyboardType="decimal-pad" placeholder="75000" />
 

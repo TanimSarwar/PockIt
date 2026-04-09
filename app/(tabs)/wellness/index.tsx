@@ -6,7 +6,7 @@ import { featuresByCategory } from '../../../constants/features';
 
 const SECTIONS_IDS = [
   { title: '🧘 Mindfulness', ids: ['meditation', 'breathing'] },
-  { title: '📈 Progress',    ids: ['step-counter', 'water-tracker', 'sleep-tracker', 'bmi-calculator'] },
+  { title: '📈 Daily Progress', ids: ['step-counter', 'water-tracker', 'sleep-tracker', 'bmi-calculator'] },
   { title: '✨ Comfort',     ids: ['sounds'] },
 ];
 

@@ -16,6 +16,8 @@ interface SearchBarProps {
   placeholder?: string;
   debounceMs?: number;
   autoFocus?: boolean;
+  onSearch?: (text: string) => void;
+  containerStyle?: any;
 }
 
 export function SearchBar({
@@ -24,6 +26,8 @@ export function SearchBar({
   placeholder = 'Search...',
   debounceMs = 300,
   autoFocus = false,
+  onSearch,
+  containerStyle,
 }: SearchBarProps) {
   const { theme } = useTheme();
   const [internalValue, setInternalValue] = useState(controlledValue ?? '');
@@ -90,6 +94,7 @@ export function SearchBar({
           backgroundColor: theme.colors.surfaceSecondary,
           borderRadius: theme.borderRadius.md,
         },
+        containerStyle,
       ]}
     >
       <MaterialCommunityIcons
@@ -118,7 +123,7 @@ export function SearchBar({
         underlineColorAndroid="transparent"
         accessibilityLabel={placeholder}
       />
-      {internalValue.length > 0 && (
+      {internalValue.length > 0 && !onSearch && (
         <Pressable
           onPress={handleClear}
           style={styles.clearButton}
@@ -130,6 +135,20 @@ export function SearchBar({
             name="close-circle"
             size={18}
             color={theme.colors.textTertiary}
+          />
+        </Pressable>
+      )}
+      {onSearch && (
+        <Pressable
+          onPress={() => onSearch(internalValue)}
+          style={[styles.searchButton, { backgroundColor: theme.colors.accent }]}
+          accessibilityLabel="Submit search"
+          accessibilityRole="button"
+        >
+          <MaterialCommunityIcons
+            name="arrow-right"
+            size={20}
+            color="#fff"
           />
         </Pressable>
       )}
@@ -162,5 +181,13 @@ const styles = StyleSheet.create({
   clearButton: {
     marginLeft: 8,
     padding: 2,
+  },
+  searchButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
   },
 });

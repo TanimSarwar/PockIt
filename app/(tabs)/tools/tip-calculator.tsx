@@ -25,7 +25,10 @@ export default function TipCalculatorScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScreenHeader title="Tip Calculator" />
+      <ScreenHeader 
+         category="TOOLS / FINANCE" 
+         title="Tip Calculator" 
+      />
       <ScrollView contentContainerStyle={styles.content}>
         <Input label="Bill Amount ($)" value={bill} onChangeText={setBill} keyboardType="decimal-pad" placeholder="0.00" />
 

@@ -5,85 +5,175 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
-  Animated,
-  Easing,
+  Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { Audio } from 'expo-av';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence,
+  Easing,
+  cancelAnimation,
+  interpolate,
+} from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../../store/theme';
-import { lightImpact, mediumImpact, notificationSuccess } from '../../../lib/haptics';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
+import { lightImpact, mediumImpact, notificationSuccess, selectionFeedback } from '../../../lib/haptics';
+
+const { width: SW } = Dimensions.get('window');
+const CARD_W = (SW - 44) / 2;
+const STORAGE_KEY = 'pockit-meditation-sessions';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const DURATION_OPTIONS = [5, 10, 15, 20, 30];
-const STORAGE_KEY = 'pockit-meditation-sessions';
+interface Option {
+  id: string;
+  label: string;
+  tags: string;
+  emoji: string;
+  color: string;
+  icon?: keyof typeof MaterialCommunityIcons.glyphMap;
+}
 
-const AMBIENT_SOUNDS = [
-  { id: 'none', label: 'None', icon: 'volume-off' as const },
-  { id: 'rain', label: 'Rain', icon: 'weather-rainy' as const },
-  { id: 'ocean', label: 'Ocean', icon: 'waves' as const },
-  { id: 'forest', label: 'Forest', icon: 'tree' as const },
-  { id: 'bells', label: 'Bells', icon: 'bell-ring-outline' as const },
+const DURATION_OPTIONS: Option[] = [
+  { id: '5', label: 'Quick Zen', tags: '5 Minutes • Light', emoji: '🧘', color: '#10B981' },
+  { id: '10', label: 'Daily Mind', tags: '10 Minutes • Mid', emoji: '✨', color: '#3B82F6' },
+  { id: '15', label: 'Deep Focus', tags: '15 Minutes • Hard', emoji: '🌊', icon: 'waves', color: '#8B5CF6' },
+  { id: '20', label: 'Inner Peace', tags: '20 Minutes • Long', emoji: '🌸', color: '#EC4899' },
+  { id: '30', label: 'Nirvana', tags: '30 Minutes • Pro', emoji: '🕯️', color: '#F59E0B' },
+  { id: '45', label: 'Eternity', tags: '45 Minutes • Max', emoji: '🪐', color: '#6366F1' },
 ];
 
-// ─── Component ──────────────────────────────────────────────────────────────
+const AMBIENT_SOUNDS: Option[] = [
+  { id: 'none', label: 'Silent', tags: 'No Audio', emoji: '🔇', color: '#6B7280' },
+  { id: 'rain', label: 'Rainfall', tags: 'Nature • Soft', emoji: '💧', color: '#3B82F6' },
+  { id: 'ocean', label: 'Waves', tags: 'Nature • Deep', emoji: '🌊', color: '#06B6D4' },
+  { id: 'forest', label: 'Woods', tags: 'Nature • Calm', emoji: '🌲', color: '#22C55E' },
+  { id: 'bells', label: 'Chimes', tags: 'Ting • Echo', emoji: '🔔', color: '#A855F7' },
+  { id: 'white', label: 'Energy', tags: 'System • Static', emoji: '⚙️', color: '#9CA3AF' },
+];
+
+// ─── Pulse dot for active state ──────────────────────────────────────────────
+
+function PulseDot({ color }: { color: string }) {
+  const o = useSharedValue(1);
+  useEffect(() => {
+    o.value = withRepeat(withSequence(
+      withTiming(0.3, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+      withTiming(1, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+    ), -1, false);
+    return () => cancelAnimation(o);
+  }, []);
+  const s = useAnimatedStyle(() => ({ opacity: o.value }));
+  return (
+    <Animated.View style={[{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }, s]} />
+  );
+}
+
+// ─── Option Card ─────────────────────────────────────────────────────────────
+
+function OptionCard({ item, isActive, onPress, theme }: { item: Option; isActive: boolean; onPress: () => void; theme: any }) {
+  const scale = useSharedValue(1);
+  const bounce = useSharedValue(0);
+
+  useEffect(() => {
+    if (isActive) {
+      bounce.value = withRepeat(
+        withSequence(
+          withTiming(-4, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: 400, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      );
+    } else {
+      bounce.value = withTiming(0);
+    }
+  }, [isActive]);
+
+  const pressIn = () => { scale.value = withTiming(0.95, { duration: 100 }); };
+  const pressOut = () => { scale.value = withTiming(1, { duration: 150 }); onPress(); };
+
+  const aStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const bounceStyle = useAnimatedStyle(() => ({ transform: [{ translateY: bounce.value }] }));
+
+  return (
+    <Pressable onPressIn={pressIn} onPressOut={pressOut}>
+      <Animated.View style={[sc.card, { backgroundColor: theme.colors.surface }, isActive && { borderColor: item.color, borderWidth: 2 }, aStyle]}>
+        <View style={[sc.playBtn, isActive ? { backgroundColor: item.color } : { backgroundColor: theme.colors.surfaceTertiary }]}>
+          {isActive
+            ? <PulseDot color="#fff" />
+            : <MaterialCommunityIcons name="check" size={12} color={theme.colors.textTertiary} />
+          }
+        </View>
+        <Animated.View style={[sc.iconWrap, bounceStyle]}>
+          <Text style={sc.emoji}>{item.emoji}</Text>
+        </Animated.View>
+        <View style={sc.info}>
+          <Text style={[sc.name, { color: theme.colors.text }]} numberOfLines={1}>{item.label}</Text>
+          <Text style={[sc.tags, { color: theme.colors.textTertiary }]} numberOfLines={1}>{item.tags}</Text>
+        </View>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+const sc = StyleSheet.create({
+  card: { width: CARD_W, borderRadius: 16, padding: 12, gap: 4, borderWidth: 1.5, borderColor: 'transparent', elevation: 2 },
+  iconWrap: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  emoji: { fontSize: 24 },
+  info: { gap: 0 },
+  name: { fontSize: 13, fontWeight: '700' },
+  tags: { fontSize: 10, fontWeight: '500' },
+  playBtn: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', position: 'absolute', top: 8, right: 8, zIndex: 10 },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function MeditationScreen() {
   const { theme } = useTheme();
   const [duration, setDuration] = useState(10); // minutes
-  const [customDuration, setCustomDuration] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [elapsed, setElapsed] = useState(0); // seconds
   const [isComplete, setIsComplete] = useState(false);
   const [totalSessions, setTotalSessions] = useState(0);
-  const [intervalBell, setIntervalBell] = useState(false);
   const [ambientSound, setAmbientSound] = useState('none');
 
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const progress = useSharedValue(0);
+  const pulse = useSharedValue(1);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pulseRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  // Load total sessions on mount
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((val) => {
       if (val) setTotalSessions(parseInt(val, 10) || 0);
     });
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      pulseRef.current?.stop();
     };
   }, []);
 
   const totalSeconds = duration * 60;
-  const progress = totalSeconds > 0 ? elapsed / totalSeconds : 0;
   const remaining = Math.max(0, totalSeconds - elapsed);
 
-  // Pulse animation while meditating
   const startPulse = useCallback(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.08,
-          duration: 3000,
-          easing: Easing.bezier(0.4, 0, 0.2, 1),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 3000,
-          easing: Easing.bezier(0.4, 0, 0.2, 1),
-          useNativeDriver: true,
-        }),
-      ]),
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1.08, { duration: 3000, easing: Easing.bezier(0.4, 0, 0.2, 1) }),
+        withTiming(1, { duration: 3000, easing: Easing.bezier(0.4, 0, 0.2, 1) }),
+      ),
+      -1,
+      false
     );
-    pulseRef.current = anim;
-    anim.start();
-  }, [pulseAnim]);
+  }, [pulse]);
+
+  const stopPulse = useCallback(() => {
+    pulse.value = withTiming(1);
+  }, [pulse]);
 
   const startSession = useCallback(() => {
     mediumImpact();
@@ -94,50 +184,39 @@ export default function MeditationScreen() {
     startPulse();
 
     let sec = 0;
+    progress.value = 0;
     intervalRef.current = setInterval(() => {
       sec += 1;
       setElapsed(sec);
-
-      // Animate progress
-      Animated.timing(progressAnim, {
-        toValue: sec / (duration * 60),
-        duration: 950,
-        useNativeDriver: false,
-      }).start();
-
-      // Check interval bell (every 5 minutes)
-      if (sec > 0 && sec % 300 === 0) {
-        // intervalBell feedback handled via haptic as placeholder
-        lightImpact();
-      }
+      progress.value = withTiming(sec / (duration * 60), { duration: 1000, easing: Easing.linear });
 
       if (sec >= duration * 60) {
-        // Session complete
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        setIsRunning(false);
-        setIsComplete(true);
-        notificationSuccess();
-
-        // Save session count
-        AsyncStorage.getItem(STORAGE_KEY).then((val) => {
-          const count = (parseInt(val || '0', 10) || 0) + 1;
-          AsyncStorage.setItem(STORAGE_KEY, count.toString());
-          setTotalSessions(count);
-        });
+        finishSession();
       }
     }, 1000);
-  }, [duration, progressAnim, startPulse]);
+  }, [duration, startPulse, progress]);
+
+  const finishSession = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setIsRunning(false);
+    setIsComplete(true);
+    notificationSuccess();
+    stopPulse();
+
+    AsyncStorage.getItem(STORAGE_KEY).then((val) => {
+      const count = (parseInt(val || '0', 10) || 0) + 1;
+      AsyncStorage.setItem(STORAGE_KEY, count.toString());
+      setTotalSessions(count);
+    });
+  }, [stopPulse]);
 
   const pauseSession = useCallback(() => {
     lightImpact();
     setIsPaused(true);
     setIsRunning(false);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    pulseRef.current?.stop();
-  }, []);
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    stopPulse();
+  }, [stopPulse]);
 
   const resumeSession = useCallback(() => {
     lightImpact();
@@ -149,27 +228,13 @@ export default function MeditationScreen() {
     intervalRef.current = setInterval(() => {
       sec += 1;
       setElapsed(sec);
-
-      Animated.timing(progressAnim, {
-        toValue: sec / (duration * 60),
-        duration: 950,
-        useNativeDriver: false,
-      }).start();
+      progress.value = withTiming(sec / (duration * 60), { duration: 1000, easing: Easing.linear });
 
       if (sec >= duration * 60) {
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        setIsRunning(false);
-        setIsComplete(true);
-        notificationSuccess();
-
-        AsyncStorage.getItem(STORAGE_KEY).then((val) => {
-          const count = (parseInt(val || '0', 10) || 0) + 1;
-          AsyncStorage.setItem(STORAGE_KEY, count.toString());
-          setTotalSessions(count);
-        });
+        finishSession();
       }
     }, 1000);
-  }, [elapsed, duration, progressAnim, startPulse]);
+  }, [elapsed, duration, startPulse, finishSession, progress]);
 
   const stopSession = useCallback(() => {
     lightImpact();
@@ -178,10 +243,9 @@ export default function MeditationScreen() {
     setElapsed(0);
     setIsComplete(false);
     if (intervalRef.current) clearInterval(intervalRef.current);
-    pulseRef.current?.stop();
-    pulseAnim.setValue(1);
-    progressAnim.setValue(0);
-  }, [pulseAnim, progressAnim]);
+    stopPulse();
+    progress.value = 0;
+  }, [stopPulse, progress]);
 
   const formatTime = (totalSec: number): string => {
     const m = Math.floor(totalSec / 60);
@@ -189,719 +253,174 @@ export default function MeditationScreen() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Circle progress ring dimensions
-  const RING_SIZE = 240;
-  const RING_STROKE = 8;
-  const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
-  const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+  const ringStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+    opacity: interpolate(pulse.value, [1, 1.08], [0.8, 1]),
+  }));
 
-  const strokeDashoffset = progressAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [RING_CIRCUMFERENCE, 0],
-  });
+  const progressWidth = useAnimatedStyle(() => ({
+    width: `${progress.value * 100}%`,
+  }));
 
-  // Completion screen
   if (isComplete) {
     return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
-        edges={['top']}
-      >
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <MaterialCommunityIcons
-              name="arrow-left"
-              size={24}
-              color={theme.colors.text}
-            />
-          </Pressable>
-          <Text
-            style={[
-              styles.headerTitle,
-              {
-                color: theme.colors.text,
-                fontFamily: theme.fontFamily.semiBold,
-              },
-            ]}
-          >
-            Session Complete
-          </Text>
-          <View style={{ width: 24 }} />
-        </View>
-
+      <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+        <ScreenHeader category="WELLNESS / RELAX" title="Session Complete" />
         <View style={styles.completeContainer}>
-          <View
-            style={[
-              styles.completeIcon,
-              { backgroundColor: theme.colors.successBg },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="check-circle"
-              size={64}
-              color={theme.colors.success}
-            />
+          <View style={[styles.completeIcon, { backgroundColor: theme.colors.successBg }]}>
+            <MaterialCommunityIcons name="check-circle" size={64} color={theme.colors.success} />
           </View>
-          <Text
-            style={[
-              styles.completeTitle,
-              {
-                color: theme.colors.text,
-                fontFamily: theme.fontFamily.bold,
-              },
-            ]}
-          >
-            Well Done!
-          </Text>
-          <Text
-            style={[
-              styles.completeSubtitle,
-              {
-                color: theme.colors.textSecondary,
-                fontFamily: theme.fontFamily.regular,
-              },
-            ]}
-          >
-            You meditated for {duration} minutes
-          </Text>
+          <Text style={[styles.completeTitle, { color: theme.colors.text }]}>Zen Achieved</Text>
+          <Text style={[styles.completeSubtitle, { color: theme.colors.textSecondary }]}>You meditated for {duration} minutes</Text>
 
           <View style={styles.completeStats}>
-            <View
-              style={[
-                styles.completeStat,
-                { backgroundColor: theme.colors.surface },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.completeStatValue,
-                  {
-                    color: theme.colors.accent,
-                    fontFamily: theme.fontFamily.bold,
-                  },
-                ]}
-              >
-                {duration}
-              </Text>
-              <Text
-                style={[
-                  styles.completeStatLabel,
-                  {
-                    color: theme.colors.textSecondary,
-                    fontFamily: theme.fontFamily.regular,
-                  },
-                ]}
-              >
-                Minutes
-              </Text>
+            <View style={[styles.completeStat, { backgroundColor: theme.colors.surface }]}>
+              <Text style={[styles.completeStatValue, { color: theme.colors.accent }]}>{duration}</Text>
+              <Text style={[styles.completeStatLabel, { color: theme.colors.textSecondary }]}>Minutes</Text>
             </View>
-            <View
-              style={[
-                styles.completeStat,
-                { backgroundColor: theme.colors.surface },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.completeStatValue,
-                  {
-                    color: theme.colors.accent,
-                    fontFamily: theme.fontFamily.bold,
-                  },
-                ]}
-              >
-                {totalSessions}
-              </Text>
-              <Text
-                style={[
-                  styles.completeStatLabel,
-                  {
-                    color: theme.colors.textSecondary,
-                    fontFamily: theme.fontFamily.regular,
-                  },
-                ]}
-              >
-                Total Sessions
-              </Text>
+            <View style={[styles.completeStat, { backgroundColor: theme.colors.surface }]}>
+              <Text style={[styles.completeStatValue, { color: theme.colors.accent }]}>{totalSessions}</Text>
+              <Text style={[styles.completeStatLabel, { color: theme.colors.textSecondary }]}>Sessions</Text>
             </View>
           </View>
 
-          <Pressable
-            onPress={stopSession}
-            style={[
-              styles.doneButton,
-              { backgroundColor: theme.colors.accent },
-            ]}
-          >
-            <Text
-              style={[
-                styles.doneButtonText,
-                { fontFamily: theme.fontFamily.semiBold },
-              ]}
-            >
-              Done
-            </Text>
+          <Pressable onPress={stopSession} style={[styles.doneButton, { backgroundColor: theme.colors.accent }]}>
+            <Text style={styles.doneButtonText}>Finish Session</Text>
           </Pressable>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   const showTimer = isRunning || isPaused;
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-      edges={['top']}
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => { stopSession(); router.back(); }} hitSlop={12}>
-          <MaterialCommunityIcons
-            name="arrow-left"
-            size={24}
-            color={theme.colors.text}
-          />
-        </Pressable>
-        <Text
-          style={[
-            styles.headerTitle,
-            {
-              color: theme.colors.text,
-              fontFamily: theme.fontFamily.semiBold,
-            },
-          ]}
-        >
-          Meditation
-        </Text>
-        <View style={styles.sessionBadge}>
-          <MaterialCommunityIcons
-            name="meditation"
-            size={16}
-            color={theme.colors.accent}
-          />
-          <Text
-            style={[
-              styles.sessionCount,
-              {
-                color: theme.colors.accent,
-                fontFamily: theme.fontFamily.medium,
-              },
-            ]}
-          >
-            {totalSessions}
-          </Text>
-        </View>
-      </View>
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+      <ScreenHeader
+        category="WELLNESS / RELAX"
+        title="Meditation"
+        rightAction={
+          <View style={styles.badge}>
+            <MaterialCommunityIcons name="meditation" size={14} color={theme.colors.accent} />
+            <Text style={[styles.badgeText, { color: theme.colors.accent }]}>{totalSessions}</Text>
+          </View>
+        }
+      />
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={!showTimer}
-      >
-        {/* Timer Circle */}
-        <View style={styles.timerContainer}>
-          <Animated.View
-            style={[
-              styles.timerRing,
-              {
-                width: RING_SIZE,
-                height: RING_SIZE,
-                borderRadius: RING_SIZE / 2,
-                borderColor: theme.colors.surfaceTertiary,
-                transform: [{ scale: pulseAnim }],
-              },
-            ]}
-          >
-            {/* Progress ring using a View-based approach */}
-            <View
-              style={[
-                styles.timerInner,
-                { backgroundColor: theme.colors.surface },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.timerText,
-                  {
-                    color: theme.colors.text,
-                    fontFamily: theme.fontFamily.bold,
-                  },
-                ]}
-              >
-                {showTimer ? formatTime(remaining) : `${duration}:00`}
-              </Text>
-              <Text
-                style={[
-                  styles.timerLabel,
-                  {
-                    color: theme.colors.textSecondary,
-                    fontFamily: theme.fontFamily.regular,
-                  },
-                ]}
-              >
-                {isRunning
-                  ? 'Remaining'
-                  : isPaused
-                    ? 'Paused'
-                    : 'Minutes'}
-              </Text>
-            </View>
-          </Animated.View>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} scrollEnabled={!showTimer}>
+        <LinearGradient colors={theme.palette.gradient as any} style={styles.featuredCard}>
+          {showTimer ? (
+            <>
+              <Pressable onPress={stopSession} style={styles.featuredStopBtn}>
+                <Text style={styles.featuredStopText}>CANCEL</Text>
+                <MaterialCommunityIcons name="close-circle" size={16} color="#FF5252" />
+              </Pressable>
+              
+              <Animated.View style={[styles.featuredTimerWrap, ringStyle]}>
+                <Text style={styles.featuredTimerText}>{formatTime(remaining)}</Text>
+                <Text style={styles.featuredTimerSub}>{isRunning ? 'DEEP BREATH' : 'PAUSED'}</Text>
+              </Animated.View>
 
-          {/* Progress bar below circle */}
-          {showTimer && (
-            <View
-              style={[
-                styles.progressBar,
-                { backgroundColor: theme.colors.surfaceTertiary },
-              ]}
-            >
-              <Animated.View
-                style={[
-                  styles.progressFill,
-                  {
-                    backgroundColor: theme.colors.accent,
-                    width: progressAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0%', '100%'],
-                    }),
-                  },
-                ]}
-              />
-            </View>
+              <View style={[styles.featuredProgressBar, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <Animated.View style={[styles.featuredProgressFill, progressWidth]} />
+              </View>
+
+              <Pressable onPress={isRunning ? pauseSession : resumeSession} style={styles.featuredPlay}>
+                <MaterialCommunityIcons name={isRunning ? 'pause' : 'play'} size={18} color={theme.colors.accent} />
+                <Text style={[styles.featuredPlayText, { color: theme.colors.accent }]}>{isRunning ? 'Pause' : 'Resume'}</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={styles.featuredLabel}>READY TO START?</Text>
+              <Text style={styles.featuredTitle}>{duration} Minute Session</Text>
+              <Pressable onPress={startSession} style={styles.featuredPlay}>
+                <MaterialCommunityIcons name="play" size={18} color={theme.colors.accent} />
+                <Text style={[styles.featuredPlayText, { color: theme.colors.accent }]}>Start Meditation</Text>
+              </Pressable>
+            </>
           )}
-        </View>
+        </LinearGradient>
 
-        {/* Duration selector (only when not in session) */}
         {!showTimer && (
           <>
-            <Text
-              style={[
-                styles.sectionTitle,
-                {
-                  color: theme.colors.text,
-                  fontFamily: theme.fontFamily.semiBold,
-                },
-              ]}
-            >
-              Duration
-            </Text>
-            <View style={styles.durationRow}>
-              {DURATION_OPTIONS.map((d) => (
-                <Pressable
-                  key={d}
-                  onPress={() => {
-                    selectionFeedback();
-                    setDuration(d);
-                  }}
-                  style={[
-                    styles.durationChip,
-                    {
-                      backgroundColor:
-                        duration === d
-                          ? theme.colors.accent
-                          : theme.colors.surfaceSecondary,
-                      borderColor:
-                        duration === d
-                          ? theme.colors.accent
-                          : theme.colors.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.durationText,
-                      {
-                        color:
-                          duration === d
-                            ? '#FFFFFF'
-                            : theme.colors.textSecondary,
-                        fontFamily: theme.fontFamily.medium,
-                      },
-                    ]}
-                  >
-                    {d}m
-                  </Text>
-                </Pressable>
+            <Text style={[styles.sectionTitle, { color: theme.colors.textTertiary }]}>CHOOSE DURATION</Text>
+            <View style={styles.grid}>
+              {DURATION_OPTIONS.map(opt => (
+                <OptionCard 
+                  key={opt.id} 
+                  item={opt} 
+                  isActive={duration === parseInt(opt.id, 10)} 
+                  onPress={() => { selectionFeedback(); setDuration(parseInt(opt.id, 10)); }} 
+                  theme={theme} 
+                />
               ))}
             </View>
 
-            {/* Ambient sound */}
-            <Text
-              style={[
-                styles.sectionTitle,
-                {
-                  color: theme.colors.text,
-                  fontFamily: theme.fontFamily.semiBold,
-                },
-              ]}
-            >
-              Ambient Sound
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.ambientRow}
-            >
-              {AMBIENT_SOUNDS.map((s) => {
-                const isSelected = ambientSound === s.id;
-                return (
-                  <Pressable
-                    key={s.id}
-                    onPress={() => {
-                      selectionFeedback();
-                      setAmbientSound(s.id);
-                    }}
-                    style={[
-                      styles.ambientChip,
-                      {
-                        backgroundColor: isSelected
-                          ? theme.colors.accentMuted
-                          : theme.colors.surfaceSecondary,
-                        borderColor: isSelected
-                          ? theme.colors.accent
-                          : theme.colors.border,
-                      },
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name={s.icon}
-                      size={20}
-                      color={
-                        isSelected
-                          ? theme.colors.accent
-                          : theme.colors.textSecondary
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.ambientText,
-                        {
-                          color: isSelected
-                            ? theme.colors.accent
-                            : theme.colors.textSecondary,
-                          fontFamily: theme.fontFamily.medium,
-                        },
-                      ]}
-                    >
-                      {s.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            {/* Interval bell toggle */}
-            <Pressable
-              onPress={() => {
-                selectionFeedback();
-                setIntervalBell(!intervalBell);
-              }}
-              style={[
-                styles.toggleRow,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border,
-                },
-              ]}
-            >
-              <MaterialCommunityIcons
-                name="bell-ring-outline"
-                size={20}
-                color={theme.colors.text}
-              />
-              <Text
-                style={[
-                  styles.toggleLabel,
-                  {
-                    color: theme.colors.text,
-                    fontFamily: theme.fontFamily.medium,
-                  },
-                ]}
-              >
-                Interval Bell (every 5 min)
-              </Text>
-              <View
-                style={[
-                  styles.toggleSwitch,
-                  {
-                    backgroundColor: intervalBell
-                      ? theme.colors.accent
-                      : theme.colors.surfaceTertiary,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.toggleKnob,
-                    {
-                      transform: [
-                        { translateX: intervalBell ? 18 : 2 },
-                      ],
-                    },
-                  ]}
+            <Text style={[styles.sectionTitle, { color: theme.colors.textTertiary, marginTop: 12 }]}>AMBIENT SOUND</Text>
+            <View style={styles.grid}>
+              {AMBIENT_SOUNDS.map(snd => (
+                <OptionCard 
+                  key={snd.id} 
+                  item={snd} 
+                  isActive={ambientSound === snd.id} 
+                  onPress={() => { selectionFeedback(); setAmbientSound(snd.id); }} 
+                  theme={theme} 
                 />
+              ))}
+            </View>
+
+            <View style={[styles.settingsCard, { backgroundColor: theme.colors.surface, marginTop: 12 }]}>
+              <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>Mindfulness Stats</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + '20' }]}>
+                   <MaterialCommunityIcons name="calendar-check" size={24} color={theme.colors.accent} />
+                </View>
+                <View>
+                  <Text style={[styles.statTitle, { color: theme.colors.text }]}>{totalSessions} Sessions Completed</Text>
+                  <Text style={[styles.statSub, { color: theme.colors.textSecondary }]}>Keep up the great work!</Text>
+                </View>
               </View>
-            </Pressable>
+            </View>
           </>
         )}
-
-        {/* Controls */}
-        <View style={styles.controls}>
-          {isPaused && (
-            <Pressable
-              onPress={stopSession}
-              style={[
-                styles.controlBtn,
-                { backgroundColor: theme.colors.errorBg },
-              ]}
-            >
-              <MaterialCommunityIcons
-                name="stop"
-                size={24}
-                color={theme.colors.error}
-              />
-            </Pressable>
-          )}
-          <Pressable
-            onPress={
-              isRunning
-                ? pauseSession
-                : isPaused
-                  ? resumeSession
-                  : startSession
-            }
-            style={[
-              styles.mainBtn,
-              { backgroundColor: theme.colors.accent },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name={isRunning ? 'pause' : 'play'}
-              size={32}
-              color="#FFFFFF"
-            />
-          </Pressable>
-          {isPaused && (
-            <Pressable
-              onPress={resumeSession}
-              style={[
-                styles.controlBtn,
-                { backgroundColor: theme.colors.successBg },
-              ]}
-            >
-              <MaterialCommunityIcons
-                name="play"
-                size={24}
-                color={theme.colors.success}
-              />
-            </Pressable>
-          )}
-        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-// Missing import used inline
-function selectionFeedback() {
-  // Re-export from haptics
-  require('../../../lib/haptics').selectionFeedback();
-}
-
-// ─── Styles ─────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  headerTitle: {
-    fontSize: 18,
-  },
-  sessionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  sessionCount: {
-    fontSize: 14,
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingBottom: 32,
-  },
-  timerContainer: {
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  timerRing: {
-    borderWidth: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timerInner: {
-    width: '85%',
-    height: '85%',
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timerText: {
-    fontSize: 40,
-  },
-  timerLabel: {
-    fontSize: 13,
-    marginTop: 4,
-  },
-  progressBar: {
-    width: '80%',
-    height: 4,
-    borderRadius: 2,
-    marginTop: 16,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    marginBottom: 12,
-    marginTop: 8,
-  },
-  durationRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
-  },
-  durationChip: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  durationText: {
-    fontSize: 15,
-  },
-  ambientRow: {
-    gap: 10,
-    paddingBottom: 4,
-    marginBottom: 16,
-  },
-  ambientChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  ambientText: {
-    fontSize: 13,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 24,
-  },
-  toggleLabel: {
-    flex: 1,
-    fontSize: 14,
-  },
-  toggleSwitch: {
-    width: 44,
-    height: 26,
-    borderRadius: 13,
-    justifyContent: 'center',
-  },
-  toggleKnob: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#FFFFFF',
-  },
-  controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 20,
-    marginTop: 8,
-  },
-  controlBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mainBtn: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  completeContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  completeIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  completeTitle: {
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  completeSubtitle: {
-    fontSize: 15,
-    marginBottom: 32,
-  },
-  completeStats: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 40,
-  },
-  completeStat: {
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 28,
-    borderRadius: 16,
-  },
-  completeStatValue: {
-    fontSize: 28,
-  },
-  completeStatLabel: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  doneButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 48,
-    borderRadius: 12,
-  },
-  doneButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-  },
+  root: { flex: 1 },
+  scroll: { paddingHorizontal: 16, paddingBottom: 40 },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(99, 102, 241, 0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  badgeText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
+  featuredCard: { borderRadius: 24, padding: 20, marginBottom: 24, minHeight: 180, justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden' },
+  featuredStopBtn: { position: 'absolute', top: 12, right: 12, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  featuredStopText: { color: '#FF5252', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  featuredLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, textAlign: 'center', marginBottom: 4 },
+  featuredTitle: { color: '#fff', fontSize: 24, fontWeight: '900', letterSpacing: -0.5, marginBottom: 16, textAlign: 'center' },
+  featuredPlay: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, gap: 8, elevation: 4 },
+  featuredPlayText: { fontSize: 14, fontWeight: '800' },
+  featuredTimerWrap: { alignItems: 'center', marginBottom: 16 },
+  featuredTimerText: { color: '#fff', fontSize: 48, fontWeight: '900', letterSpacing: -2 },
+  featuredTimerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: '800', letterSpacing: 2, marginTop: -4 },
+  featuredProgressBar: { width: '80%', height: 6, borderRadius: 3, marginBottom: 20, overflow: 'hidden' },
+  featuredProgressFill: { height: '100%', backgroundColor: '#fff', borderRadius: 3 },
+  sectionTitle: { fontSize: 11, fontWeight: '800', marginBottom: 16, letterSpacing: 1.2 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
+  settingsCard: { borderRadius: 24, padding: 20 },
+  settingsTitle: { fontSize: 18, fontWeight: '800', marginBottom: 16 },
+  iconBox: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  statTitle: { fontSize: 15, fontWeight: '700' },
+  statSub: { fontSize: 12, fontWeight: '500' },
+  completeContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  completeIcon: { width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center', marginBottom: 24, elevation: 4 },
+  completeTitle: { fontSize: 32, fontWeight: '900', marginBottom: 8, letterSpacing: -0.5 },
+  completeSubtitle: { fontSize: 16, textAlign: 'center', marginBottom: 40, lineHeight: 24 },
+  completeStats: { flexDirection: 'row', gap: 16, marginBottom: 40 },
+  completeStat: { flex: 1, padding: 20, borderRadius: 24, alignItems: 'center', elevation: 2 },
+  completeStatValue: { fontSize: 28, fontWeight: '900' },
+  completeStatLabel: { fontSize: 12, marginTop: 4, fontWeight: '700', letterSpacing: 0.5 },
+  doneButton: { paddingVertical: 18, paddingHorizontal: 48, borderRadius: 20, width: '100%', elevation: 4 },
+  doneButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', textAlign: 'center', letterSpacing: 0.5 },
 });

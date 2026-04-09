@@ -10,16 +10,72 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../../store/theme';
-import { lightImpact, mediumImpact, selectionFeedback } from '../../../lib/haptics';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
+import { lightImpact, selectionFeedback } from '../../../lib/haptics';
 
 const { width: SW } = Dimensions.get('window');
+const CARD_W = (SW - 44) / 2;
+
+// ─── Stat Card Component (Matches SoundCard exactly) ─────────────────────────
+
+function StatCard({ 
+  label, 
+  value, 
+  emoji, 
+  icon, 
+  theme 
+}: { 
+  label: string; 
+  value: string; 
+  emoji: string; 
+  icon: string; 
+  theme: any;
+}) {
+  const scale = useSharedValue(1);
+  const pressIn = () => { scale.value = withTiming(0.95, { duration: 100 }); };
+  const pressOut = () => { scale.value = withTiming(1, { duration: 150 }); };
+  const aStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  return (
+    <Pressable onPressIn={pressIn} onPressOut={pressOut}>
+      <Animated.View style={[sc.card, { backgroundColor: theme.colors.surface }, aStyle]}>
+        <View style={[sc.playBtn, { backgroundColor: theme.colors.surfaceTertiary }]}>
+          <MaterialCommunityIcons name={icon as any} size={12} color={theme.colors.accent} />
+        </View>
+        <View style={sc.iconWrap}>
+          <Text style={sc.emoji}>{emoji}</Text>
+        </View>
+        <View style={sc.info}>
+          <Text style={[sc.name, { color: theme.colors.text }]} numberOfLines={1}>{value}</Text>
+          <Text style={[sc.tags, { color: theme.colors.textTertiary }]} numberOfLines={1}>{label}</Text>
+        </View>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+const sc = StyleSheet.create({
+  card: { width: CARD_W, borderRadius: 16, padding: 12, gap: 4, borderWidth: 1.5, borderColor: 'transparent', elevation: 2 },
+  iconWrap: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  emoji: { fontSize: 24 },
+  info: { gap: 0 },
+  name: { fontSize: 12, fontWeight: '700' },
+  tags: { fontSize: 10, fontWeight: '500' },
+  playBtn: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', position: 'absolute', top: 8, right: 8, zIndex: 10 },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function LoanCalculatorScreen() {
   const { theme } = useTheme();
-  const router = useRouter();
   const [principal, setPrincipal] = useState('100000');
   const [rate, setRate] = useState('5');
   const [tenure, setTenure] = useState('25');
@@ -56,124 +112,117 @@ export default function LoanCalculatorScreen() {
   }, [principal, rate, tenure, isYears]);
 
   return (
-    <View style={[s.root, { backgroundColor: theme.colors.background }]}>
-      {/* ── Header ── */}
-      <View style={s.pageHead}>
-        <View style={s.titleRow}>
-          <Pressable 
-            onPress={() => router.replace('/(tabs)/tools')} 
-            style={[s.backBtn, { backgroundColor: theme.colors.surfaceTertiary }]}
-          >
-            <MaterialCommunityIcons name="arrow-left" size={18} color={theme.colors.accent} />
-          </Pressable>
-          <Text style={[s.pageTitle, { color: theme.colors.text }]}>Loan Calculator</Text>
-        </View>
-      </View>
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+      <ScreenHeader 
+        category="TOOLS / FINANCE" 
+        title="Loan Calculator" 
+      />
 
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView 
-          contentContainerStyle={s.mainBody} 
+          contentContainerStyle={styles.scroll} 
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          scrollEnabled={false}
         >
-          {/* ── Inputs Card ── */}
-          <View style={[s.glassCard, { backgroundColor: theme.colors.surface }]}>
-            <View style={s.inputGroup}>
-              <Text style={[s.label, { color: theme.colors.textTertiary }]}>LOAN AMOUNT ($)</Text>
-              <View style={[s.inputWrap, { backgroundColor: theme.colors.surfaceTertiary }]}>
-                <MaterialCommunityIcons name="bank" size={18} color={theme.colors.accent} />
+          {/* Featured EMI Card */}
+          <LinearGradient colors={theme.palette.gradient as any} style={styles.featuredCard}>
+            <Text style={styles.featuredTitle}>Monthly Installment</Text>
+            <View style={styles.emiWrap}>
+              <Text style={styles.emiSymbol}>$</Text>
+              <Text style={styles.emiValue} numberOfLines={1} adjustsFontSizeToFit>{stats.emi}</Text>
+            </View>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: `${stats.principalPercent}%`, backgroundColor: '#fff' }]} />
+            </View>
+            <View style={styles.percentRow}>
+              <Text style={styles.percentText}>{Math.round(stats.principalPercent)}% Principal</Text>
+              <Text style={styles.percentText}>{Math.round(100 - stats.principalPercent)}% Interest</Text>
+            </View>
+          </LinearGradient>
+
+          <View style={[styles.settingsCard, { backgroundColor: theme.colors.surface }]}>
+            <View style={styles.inputRow}>
+              <Text style={[styles.settingLabel, { color: theme.colors.textSecondary }]}>LOAN AMOUNT</Text>
+              <View style={[styles.inputContainer, { backgroundColor: theme.colors.surfaceSecondary }]}>
+                <MaterialCommunityIcons name="bank" size={16} color={theme.colors.accent} />
                 <TextInput
-                  style={[s.input, { color: theme.colors.text }]}
+                  style={[styles.textInput, { color: theme.colors.text }]}
                   value={principal}
                   onChangeText={setPrincipal}
                   keyboardType="decimal-pad"
                   placeholder="0"
                   placeholderTextColor={theme.colors.textTertiary}
-                  underlineColorAndroid="transparent"
                 />
               </View>
             </View>
 
-            <View style={s.row}>
-              <View style={[s.inputGroup, { flex: 1 }]}>
-                <Text style={[s.label, { color: theme.colors.textTertiary }]}>INTEREST (%)</Text>
-                <View style={[s.inputWrap, { backgroundColor: theme.colors.surfaceTertiary }]}>
-                  <MaterialCommunityIcons name="percent" size={16} color={theme.colors.accent} />
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.settingLabel, { color: theme.colors.textSecondary }]}>INTEREST (%)</Text>
+                <View style={[styles.inputContainer, { backgroundColor: theme.colors.surfaceSecondary }]}>
                   <TextInput
-                    style={[s.input, { color: theme.colors.text }]}
+                    style={[styles.textInput, { color: theme.colors.text }]}
                     value={rate}
                     onChangeText={setRate}
                     keyboardType="decimal-pad"
-                    placeholderTextColor={theme.colors.textTertiary}
-                    underlineColorAndroid="transparent"
                   />
                 </View>
               </View>
-              <View style={[s.inputGroup, { flex: 1.2 }]}>
-                <Text style={[s.label, { color: theme.colors.textTertiary }]}>TENURE ({isYears ? 'Y' : 'M'})</Text>
-                <View style={[s.inputWrap, { backgroundColor: theme.colors.surfaceTertiary }]}>
+              <View style={{ flex: 1.2 }}>
+                <Text style={[styles.settingLabel, { color: theme.colors.textSecondary }]}>TENURE ({isYears ? 'Y' : 'M'})</Text>
+                <View style={[styles.inputContainer, { backgroundColor: theme.colors.surfaceSecondary }]}>
                   <TextInput
-                    style={[s.input, { color: theme.colors.text }]}
+                    style={[styles.textInput, { color: theme.colors.text }]}
                     value={tenure}
                     onChangeText={setTenure}
                     keyboardType="number-pad"
-                    placeholderTextColor={theme.colors.textTertiary}
-                    underlineColorAndroid="transparent"
                   />
                   <Pressable 
                     onPress={() => { selectionFeedback(); setIsYears(!isYears); }}
-                    style={[s.unitPill, { backgroundColor: theme.colors.accent }]}
+                    style={[styles.unitBadge, { backgroundColor: theme.colors.accent }]}
                   >
-                    <Text style={s.unitTxt}>{isYears ? 'Years' : 'Months'}</Text>
+                    <Text style={styles.unitText}>{isYears ? 'YRS' : 'MOS'}</Text>
                   </Pressable>
                 </View>
               </View>
             </View>
           </View>
 
-          {/* ── Result Card ── */}
-          <View style={[s.resultCard, { backgroundColor: theme.colors.surface }]}>
-            <Text style={[s.emiLabel, { color: theme.colors.textTertiary }]}>MONTHLY INSTALLMENT (EMI)</Text>
-            <Text style={[s.emiVal, { color: theme.colors.text }]}>${stats.emi}</Text>
-            
-            <View style={s.breakdown}>
-              <View style={[s.barBg, { backgroundColor: theme.colors.surfaceTertiary }]}>
-                <View style={[s.barFill, { width: `${stats.principalPercent}%`, backgroundColor: theme.colors.accent }]} />
-              </View>
-              <View style={s.legendRow}>
-                <View style={s.leg}>
-                  <View style={[s.dot, { backgroundColor: theme.colors.accent }]} />
-                  <Text style={[s.legTxt, { color: theme.colors.textTertiary }]}>Principal</Text>
-                </View>
-                <View style={s.leg}>
-                  <View style={[s.dot, { backgroundColor: theme.colors.surfaceTertiary }]} />
-                  <Text style={[s.legTxt, { color: theme.colors.textTertiary }]}>Interest</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={s.divider} />
-
-            <View style={s.statsGrid}>
-              <View style={s.stat}>
-                <Text style={[s.statLab, { color: theme.colors.textTertiary }]}>PRINCIPAL</Text>
-                <Text style={[s.statVal, { color: theme.colors.text }]}>${stats.rawP}</Text>
-              </View>
-              <View style={s.stat}>
-                <Text style={[s.statLab, { color: theme.colors.textTertiary }]}>TOTAL INTEREST</Text>
-                <Text style={[s.statVal, { color: theme.colors.text }]}>${stats.totalInterest}</Text>
-              </View>
-              <View style={s.stat}>
-                <Text style={[s.statLab, { color: theme.colors.textTertiary }]}>TOTAL REPAYMENT</Text>
-                <Text style={[s.statVal, { color: theme.colors.accent }]}>${stats.totalPayment}</Text>
-              </View>
-            </View>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary, marginTop: 24 }]}>LOAN BREAKDOWN</Text>
+          <View style={styles.grid}>
+            <StatCard 
+              label="Loan Principal" 
+              value={`$${stats.rawP}`} 
+              emoji="🏛️" 
+              icon="cash" 
+              theme={theme} 
+            />
+            <StatCard 
+              label="Total Interest" 
+              value={`$${stats.totalInterest}`} 
+              emoji="📈" 
+              icon="percent" 
+              theme={theme} 
+            />
+            <StatCard 
+              label="Total Repayment" 
+              value={`$${stats.totalPayment}`} 
+              emoji="💰" 
+              icon="credit-card-outline" 
+              theme={theme} 
+            />
+            <StatCard 
+              label="Amortization" 
+              value={`${isYears ? parseFloat(tenure) * 12 : tenure} Pmts`} 
+              emoji="🗓️" 
+              icon="calendar-clock" 
+              theme={theme} 
+            />
           </View>
-          
+
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -181,41 +230,29 @@ export default function LoanCalculatorScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  root:        { flex: 1 },
-  pageHead:    { paddingHorizontal: 20, paddingTop: 10, marginBottom: 8 },
-  titleRow:    { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backBtn:     { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  pageTitle:   { fontSize: 24, fontWeight: '900', letterSpacing: -1 },
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  scroll: { paddingHorizontal: 16, paddingBottom: 40 },
+  featuredCard: { borderRadius: 24, padding: 16, marginBottom: 20, minHeight: 125, justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden' },
+  featuredLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: '800', letterSpacing: 1.5, textAlign: 'center' },
+  featuredTitle: { color: '#fff', fontSize: 16, fontWeight: '900', letterSpacing: -0.5, marginBottom: 8, textAlign: 'center' },
+  emiWrap: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginBottom: 12 },
+  emiSymbol: { color: 'rgba(255,255,255,0.8)', fontSize: 16, fontWeight: '700' },
+  emiValue: { color: '#fff', fontSize: 28, fontWeight: '900', letterSpacing: -1 },
+  progressBar: { width: '80%', height: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 },
+  progressFill: { height: '100%', borderRadius: 3 },
+  percentRow: { width: '80%', flexDirection: 'row', justifyContent: 'space-between' },
+  percentText: { color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '800' },
 
-  mainBody:    { flex: 1, paddingHorizontal: 20, gap: 12 },
+  settingsCard: { borderRadius: 24, padding: 20 },
+  settingsTitle: { fontSize: 18, fontWeight: '800', marginBottom: 20 },
+  settingLabel: { fontSize: 11, fontWeight: '800', marginBottom: 10, letterSpacing: 1 },
+  inputRow: { width: '100%' },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, gap: 10 },
+  textInput: { flex: 1, fontSize: 16, fontWeight: '700', ...Platform.select({ web: { outlineStyle: 'none' } as any }) },
+  unitBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  unitText: { color: '#fff', fontSize: 10, fontWeight: '900' },
 
-  glassCard:   { borderRadius: 24, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
-  inputGroup:  { marginBottom: 16 },
-  row:         { flexDirection: 'row', gap: 12, marginBottom: 4 },
-  label:       { fontSize: 9, fontWeight: '800', letterSpacing: 1, marginBottom: 8 },
-  inputWrap:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 },
-  input:       { flex: 1, marginLeft: 8, fontSize: 16, fontWeight: '800', borderWidth: 0,
-    ...Platform.select({ web: { outlineStyle: 'none' } as any }),
-  },
-  unitPill:    { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-  unitTxt:     { color: '#FFF', fontSize: 10, fontWeight: '800' },
-
-  resultCard:  { borderRadius: 28, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 6 },
-  emiLabel:    { fontSize: 10, fontWeight: '800', textAlign: 'center', letterSpacing: 1.5, marginBottom: 6 },
-  emiVal:      { fontSize: 36, fontWeight: '900', textAlign: 'center', marginBottom: 20 },
-  
-  breakdown:   { marginBottom: 20 },
-  barBg:       { height: 10, borderRadius: 5, overflow: 'hidden' },
-  barFill:     { height: '100%', borderRadius: 5 },
-  legendRow:   { flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 8 },
-  leg:         { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot:         { width: 8, height: 8, borderRadius: 4 },
-  legTxt:      { fontSize: 11, fontWeight: '700' },
-
-  divider:     { height: 1, width: '100%', backgroundColor: 'rgba(0,0,0,0.05)', marginBottom: 20 },
-  statsGrid:   { gap: 16 },
-  stat:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statLab:     { fontSize: 10, fontWeight: '800' },
-  statVal:     { fontSize: 15, fontWeight: '800' },
+  sectionTitle: { fontSize: 11, fontWeight: '800', marginBottom: 12, letterSpacing: 1.2, marginLeft: 4 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 });

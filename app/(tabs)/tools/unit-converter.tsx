@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../../store/theme';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { lightImpact, mediumImpact, selectionFeedback } from '../../../lib/haptics';
 
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -124,18 +125,10 @@ export default function UnitConverterScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: theme.colors.background }]}>
-      {/* ── Header ── */}
-      <View style={s.pageHead}>
-        <View style={s.titleRow}>
-          <Pressable 
-            onPress={() => router.replace('/(tabs)/tools')} 
-            style={[s.backBtn, { backgroundColor: theme.colors.surfaceTertiary }]}
-          >
-            <MaterialCommunityIcons name="arrow-left" size={18} color={theme.colors.accent} />
-          </Pressable>
-          <Text style={[s.pageTitle, { color: theme.colors.text }]}>Unit Converter</Text>
-        </View>
-      </View>
+      <ScreenHeader 
+        category="TOOLS / CONVERSION" 
+        title="Unit Converter" 
+      />
 
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 

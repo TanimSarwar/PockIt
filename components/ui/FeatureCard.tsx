@@ -18,6 +18,8 @@ interface FeatureCardProps {
   iconBg?: string;
   /** Override icon color */
   iconColor?: string;
+  /** Layout mode */
+  layout?: 'regular' | 'wide' | 'narrow';
 }
 
 export const FeatureCard: React.FC<FeatureCardProps> = ({
@@ -31,6 +33,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   category,
   iconBg,
   iconColor,
+  layout = 'regular',
 }) => {
   const { theme, isDark } = useTheme();
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -74,8 +77,12 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
           styles.container,
           {
             backgroundColor: theme.colors.surface,
-            borderRadius: 32,
-            padding: 20,
+            borderRadius: layout === 'narrow' ? 24 : 32,
+            padding: layout === 'narrow' ? 12 : 20,
+            flexDirection: layout === 'regular' ? 'column' : 'row',
+            alignItems: 'center',
+            justifyContent: layout === 'regular' ? 'center' : 'flex-start',
+            minHeight: layout === 'wide' ? 110 : layout === 'narrow' ? 68 : 140,
           },
           theme.shadows.card,
         ]}
@@ -86,15 +93,16 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
             styles.iconBox,
             {
               backgroundColor: resolvedIconBg,
-              width: iconBoxSize,
-              height: iconBoxSize,
-              borderRadius: iconBoxRadius,
+              width: layout === 'narrow' ? 36 : iconBoxSize,
+              height: layout === 'narrow' ? 36 : iconBoxSize,
+              borderRadius: layout === 'narrow' ? 10 : iconBoxRadius,
+              marginRight: layout !== 'regular' ? 16 : 0,
             },
           ]}
         >
           <MaterialCommunityIcons
             name={icon as any}
-            size={iconSize}
+            size={layout === 'narrow' ? 16 : iconSize}
             color={resolvedIconColor}
           />
         </View>
@@ -106,31 +114,38 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
           </View>
         )}
 
-        {/* Text */}
-        <Text
-          style={[
-            styles.title,
-            {
-              color: theme.colors.text,
-              fontSize: 15,
-              marginTop: 12,
-              fontFamily: theme.fontFamily.bold,
-            },
-          ]}
-          numberOfLines={2}
-        >
-          {title}
-        </Text>
-        {description && (
+        {/* Text Container */}
+        <View style={{ flex: 1, alignItems: layout === 'regular' ? 'center' : 'flex-start' }}>
           <Text
             style={[
-              styles.description,
-              { color: theme.colors.textTertiary, fontFamily: theme.fontFamily.medium },
+              styles.title,
+              {
+                color: theme.colors.text,
+                fontSize: layout === 'narrow' ? 14 : 15,
+                marginTop: layout === 'regular' ? 12 : 0,
+                fontFamily: theme.fontFamily.bold,
+                textAlign: layout === 'regular' ? 'center' : 'left',
+              },
             ]}
             numberOfLines={1}
           >
-            {description}
+            {title}
           </Text>
+          {description && layout !== 'narrow' && (
+            <Text
+              style={[
+                styles.description,
+                { color: theme.colors.textTertiary, fontFamily: theme.fontFamily.medium, textAlign: layout === 'regular' ? 'center' : 'left' },
+              ]}
+              numberOfLines={layout === 'wide' ? 2 : 1}
+            >
+              {description}
+            </Text>
+          )}
+        </View>
+
+        {layout === 'narrow' && (
+           <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.textTertiary} style={{ opacity: 0.5 }} />
         )}
       </Pressable>
     </Animated.View>

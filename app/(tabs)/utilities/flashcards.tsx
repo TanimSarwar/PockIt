@@ -128,7 +128,10 @@ export default function FlashcardsScreen() {
   // Deck list
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScreenHeader title="Flashcards" rightAction={
+      <ScreenHeader 
+        category="UTILITIES / TOOLS" 
+        title="Flashcards" 
+        rightAction={
         <Pressable onPress={() => setShowDeckModal(true)} accessibilityLabel="New deck">
           <MaterialCommunityIcons name="plus-circle" size={28} color={theme.colors.accent} />
         </Pressable>

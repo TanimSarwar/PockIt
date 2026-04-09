@@ -11,7 +11,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,8 +24,9 @@ import { ThemeName } from '../../constants/theme';
 
 WebBrowser.maybeCompleteAuthSession();
 
-// Google OAuth Client ID — replace with your own as needed
-const GOOGLE_CLIENT_ID = '53251966571-a1gbke0fdtcvbt7401fo3vb54bolbktt.apps.googleusercontent.com';
+// Google OAuth Client IDs
+const GOOGLE_WEB_CLIENT_ID = '53251966571-a1gbke0fdtcvbt7401fo3vb54bolbktt.apps.googleusercontent.com';
+const GOOGLE_ANDROID_CLIENT_ID = '53251966571-l065qisocjrpbi78vhu0oki38hcn5noa.apps.googleusercontent.com';
 
 // ─── Tab Config ──────────────────────────────────────────────────────────────
 
@@ -109,7 +110,7 @@ function GoogleAuthSection({ visible, onHide }: { visible: boolean, onHide: () =
   // Hooks must be called in the same order, so we always call it but handle the result
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
-      clientId: GOOGLE_CLIENT_ID,
+      clientId: Platform.OS === 'android' ? GOOGLE_ANDROID_CLIENT_ID : GOOGLE_WEB_CLIENT_ID,
       scopes: ['openid', 'profile', 'email'],
       redirectUri: AuthSession.makeRedirectUri({ scheme: 'pockit' }),
       responseType: AuthSession.ResponseType.Token,
@@ -232,8 +233,25 @@ function GlobalHeader() {
   const { theme, themeName, setThemeName } = useTheme();
   const { user, isLoggedIn } = useAuthStore();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const pathname = usePathname();
   const [showPicker, setShowPicker] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+
+  // Determine if we should show a back button based on path depth
+  // e.g. /tools/random-generator vs /tools
+  const pathParts = pathname.split('/').filter(Boolean);
+  const canGoBack = pathParts.length > 1;
+
+  const handleBack = () => {
+    mediumImpact();
+    // Logic to go back to the parent category
+    if (pathParts.length > 0) {
+      router.replace(`/(tabs)/${pathParts[0]}` as any);
+    } else {
+      router.back();
+    }
+  };
 
   const themes: { name: ThemeName; label: string; icon: any; color: string }[] = [
     { name: 'violet', label: 'Violet', icon: 'palette', color: '#7C3AED' },
@@ -249,7 +267,15 @@ function GlobalHeader() {
     <>
       <View style={[styles.headerOuter, { paddingTop: insets.top + 8, backgroundColor: theme.colors.background }]}>
         <View style={styles.headerLeft}>
-          <Pressable style={styles.headerIcon}><MaterialCommunityIcons name="menu" size={24} color={theme.colors.text} /></Pressable>
+          {canGoBack ? (
+            <Pressable onPress={handleBack} style={styles.headerIcon}>
+              <MaterialCommunityIcons name="arrow-left" size={24} color={theme.colors.text} />
+            </Pressable>
+          ) : (
+            <Pressable style={styles.headerIcon}>
+              <MaterialCommunityIcons name="menu" size={24} color={theme.colors.text} />
+            </Pressable>
+          )}
           <Text style={[styles.headerLogo, { color: '#FF4C9F' }]}>PockIt</Text>
         </View>
 

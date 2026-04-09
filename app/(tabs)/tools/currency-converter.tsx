@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../../store/theme';
 import { fetchExchangeRates } from '../../../lib/api';
@@ -66,19 +67,10 @@ export default function CurrencyConverterScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: theme.colors.background }]}>
-      {/* ── Header ── */}
-      <View style={s.pageHead}>
-        <View style={s.titleRow}>
-          <Pressable 
-            onPress={() => router.replace('/(tabs)/tools')} 
-            style={[s.backBtn, { backgroundColor: theme.colors.surfaceTertiary }]}
-          >
-            <MaterialCommunityIcons name="arrow-left" size={18} color={theme.colors.accent} />
-          </Pressable>
-          <Text style={[s.pageTitle, { color: theme.colors.text }]}>Currency Converter</Text>
-        </View>
-      </View>
-
+      <ScreenHeader 
+         category="TOOLS / CONVERSION" 
+         title="Currency Converter" 
+      />
       <View style={s.mainBody}>
         {/* ── Amount Input Card ── */}
         <View style={[s.glassCard, { backgroundColor: theme.colors.surface }]}>
@@ -180,10 +172,7 @@ export default function CurrencyConverterScreen() {
 
 const s = StyleSheet.create({
   root:        { flex: 1 },
-  pageHead:    { paddingHorizontal: 20, paddingTop: 10, marginBottom: 8 },
-  titleRow:    { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backBtn:     { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  pageTitle:   { fontSize: 24, fontWeight: '900', letterSpacing: -1 },
+
 
   mainBody:    { flex: 1, paddingHorizontal: 20, gap: 10 },
 

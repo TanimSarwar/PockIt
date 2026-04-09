@@ -35,7 +35,10 @@ export default function NumberBaseScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScreenHeader title="Number Base Converter" />
+      <ScreenHeader 
+        category="TOOLS / MATH" 
+        title="Base Converter" 
+      />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.baseRow}>
           {BASES.map((b) => (

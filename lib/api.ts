@@ -47,6 +47,14 @@ export interface StockPrice {
   changePercent: string;
 }
 
+export interface StockSearchResult {
+  symbol: string;
+  name: string;
+  type: string;
+  region: string;
+  currency: string;
+}
+
 export interface DictionaryEntry {
   word: string;
   phonetic: string;
@@ -67,6 +75,32 @@ export interface DictionaryEntry {
 export interface Translation {
   translatedText: string;
   match: number;
+  detectedLanguage?: string;
+}
+
+export interface CountryData {
+  name: { common: string; official: string };
+  flags: { png: string; svg: string; alt?: string };
+  flag?: string; // Emoji flag if available separately, though v3.1 usually has flag: '🇺🇸'
+  capital: string[];
+  population: number;
+  region: string;
+  subregion: string;
+  currencies: Record<string, { name: string; symbol: string }>;
+  languages: Record<string, string>;
+  area: number;
+  timezones: string[];
+  cca3: string;
+  idd: { root: string; suffixes: string[] };
+  continents: string[];
+  tld: string[];
+  cca2: string;
+  borders?: string[];
+  gini?: Record<string, number>;
+  coatOfArms: { png: string; svg: string };
+  latlng: [number, number];
+  landlocked: boolean;
+  car: { side: string };
 }
 
 export class ApiError extends Error {
@@ -209,45 +243,65 @@ export async function fetchExchangeRates(
 // ─── Stock Price (Alpha Vantage) ───────────────────────────────────────────
 
 /**
- * Fetch the latest stock quote from Alpha Vantage.
- * Requires an API key; set ALPHA_VANTAGE_API_KEY in your env or pass it directly.
+ * Fetch the latest stock quote from Tiingo.
+ * Tiingo provides a more generous free tier than Alpha Vantage.
  */
 export async function fetchStockPrice(
   symbol: string,
-  apiKey: string = 'demo',
+  apiKey: string = 'YOUR_TIINGO_API_KEY', // Placeholder, should be in env
 ): Promise<StockPrice> {
-  const params = new URLSearchParams({
-    function: 'GLOBAL_QUOTE',
-    symbol,
-    apikey: apiKey,
-  });
+  const url = `https://api.tiingo.com/iex/?tickers=${symbol}&token=${apiKey}`;
+  const data = await fetchJson<any[]>(url);
 
-  const data = await fetchJson<{ 'Global Quote': Record<string, string> }>(
-    `https://www.alphavantage.co/query?${params}`,
-  );
-
-  const quote = data['Global Quote'];
-
-  if (!quote || !quote['01. symbol']) {
+  if (!Array.isArray(data) || data.length === 0) {
     throw new ApiError(
       `No stock data found for symbol "${symbol}"`,
       undefined,
-      'alphavantage.co',
+      'tiingo.com',
     );
   }
 
+  const quote = data[0];
+  const price = quote.last;
+  const prevClose = quote.prevClose;
+  const change = price - prevClose;
+  const changePercent = prevClose !== 0 ? ((change / prevClose) * 100).toFixed(2) + '%' : '0.00%';
+
   return {
-    symbol: quote['01. symbol'],
-    open: parseFloat(quote['02. open']),
-    high: parseFloat(quote['03. high']),
-    low: parseFloat(quote['04. low']),
-    price: parseFloat(quote['05. price']),
-    volume: parseInt(quote['06. volume'], 10),
-    latestTradingDay: quote['07. latest trading day'],
-    previousClose: parseFloat(quote['08. previous close']),
-    change: parseFloat(quote['09. change']),
-    changePercent: quote['10. change percent'],
+    symbol: quote.ticker,
+    open: quote.open || quote.last,
+    high: quote.high || quote.last,
+    low: quote.low || quote.last,
+    price: quote.last,
+    volume: quote.volume || 0,
+    latestTradingDay: new Date(quote.timestamp).toLocaleDateString(),
+    previousClose: quote.prevClose,
+    change,
+    changePercent,
   };
+}
+
+/**
+ * Search for stock symbols or company names using Tiingo.
+ */
+export async function searchStocks(
+  keywords: string,
+  apiKey: string = 'YOUR_TIINGO_API_KEY',
+): Promise<StockSearchResult[]> {
+  const url = `https://api.tiingo.com/tiingo/utilities/search?query=${encodeURIComponent(
+    keywords,
+  )}&token=${apiKey}`;
+  const data = await fetchJson<any[]>(url);
+
+  if (!Array.isArray(data)) return [];
+
+  return data.map((item) => ({
+    symbol: item.ticker,
+    name: item.name,
+    type: item.assetType || 'Stock',
+    region: item.countryCode || 'US',
+    currency: 'USD', // Tiingo search usually implies USD for major tickers, or we default
+  }));
 }
 
 // ─── Dictionary (Free Dictionary API) ──────────────────────────────────────
@@ -305,6 +359,7 @@ export async function fetchTranslation(
     responseData: {
       translatedText: string;
       match: number;
+      detectedLanguage?: string;
     };
   }>(`https://api.mymemory.translated.net/get?${params}`);
 
@@ -319,7 +374,36 @@ export async function fetchTranslation(
   return {
     translatedText: data.responseData.translatedText,
     match: data.responseData.match,
+    detectedLanguage: data.responseData.detectedLanguage,
   };
+}
+
+// ─── Countries (RestCountries API) ─────────────────────────────────────────
+
+export async function fetchAllCountries(): Promise<CountryData[]> {
+  const fields = [
+    'name',
+    'flags',
+    'capital',
+    'population',
+    'region',
+    'currencies',
+    'languages',
+    'area',
+    'timezones',
+    'cca3',
+  ].join(',');
+
+  return await fetchJson<CountryData[]>(
+    `https://restcountries.com/v3.1/all?fields=${fields}`,
+  );
+}
+
+export async function fetchCountryDetails(code: string): Promise<CountryData> {
+  const data = await fetchJson<CountryData[]>(
+    `https://restcountries.com/v3.1/alpha/${code}`,
+  );
+  return data[0];
 }
 
 // ─── Weather Code Descriptions ─────────────────────────────────────────────

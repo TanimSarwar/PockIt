@@ -1,12 +1,13 @@
 {
   "expo": {
-    "name": "PockItTemp",
-    "slug": "PockItTemp",
+    "name": "PockIt",
+    "slug": "pockit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "pockit",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -14,21 +15,31 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.pockit.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "PockIt uses your location to show local weather."
       }
     },
     "android": {
+      "package": "com.pockit.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "jsEngine": "hermes"
   }
 }

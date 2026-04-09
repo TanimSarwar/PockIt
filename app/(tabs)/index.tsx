@@ -9,6 +9,7 @@ import {
   Platform,
   Dimensions,
   Alert,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -17,6 +18,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import Animated, { 
   FadeInDown,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  useSharedValue,
 } from 'react-native-reanimated';
 import { useTheme } from '../../store/theme';
 import { useFavoritesStore } from '../../store/favorites';
@@ -54,32 +60,32 @@ function getWeatherMeta(code: number) {
   return WEATHER_ICONS[code] ?? { icon: 'weather-partly-cloudy', label: 'Weather' };
 }
 
-// ─── Category Card Component ──────────────────────────────────────────────────
 
-function CategoryCard({ title, subtitle, icon, color, onPress, index, theme }: any) {
-  return (
-    <Animated.View entering={FadeInDown.delay(index * 100)}>
-      <Pressable onPress={onPress}>
-        <View style={[styles.catCard, { backgroundColor: theme.colors.surface }]}>
-          <View style={[styles.catIconWrap, { backgroundColor: color + '20' }]}>
-            <MaterialCommunityIcons name={icon} size={22} color={color} />
-          </View>
-          <Text style={[styles.catTitle, { color: theme.colors.text }]}>{title}</Text>
-          <Text style={[styles.catSubtitle, { color: theme.colors.textSecondary }]}>{subtitle}</Text>
-        </View>
-      </Pressable>
-    </Animated.View>
-  );
-}
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { user, isLoggedIn } = useAuthStore();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { recentFeatures } = useFavoritesStore();
+
+  const floatAnim = useSharedValue(0);
+  useEffect(() => {
+    floatAnim.value = withRepeat(
+      withSequence(
+        withTiming(-4, { duration: 1500 }),
+        withTiming(0, { duration: 1500 })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const animatedIconStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: floatAnim.value }],
+  }));
 
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -155,6 +161,21 @@ export default function HomeScreen() {
     }
   };
 
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [curatedQuotes, setCuratedQuotes] = useState([
+    { q: "The only way to do great work is to love what you do.", a: "Steve Jobs" },
+    { q: "Focus on being productive instead of busy.", a: "Tim Ferriss" },
+    { q: "Your time is limited, so don't waste it living someone else's life.", a: "Steve Jobs" },
+    { q: "Simplicity is the ultimate sophistication.", a: "Leonardo da Vinci" },
+    { q: "Quality is not an act, it is a habit.", a: "Aristotle" }
+  ]);
+
+  const shuffleQuotes = () => {
+    mediumImpact();
+    setCuratedQuotes([...curatedQuotes].sort(() => Math.random() - 0.5));
+    setQuoteIndex(0);
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
       loadData();
@@ -171,10 +192,10 @@ export default function HomeScreen() {
   const weatherMeta = getWeatherMeta(weather?.weatherCode ?? 0);
 
   const categories = [
-    { title: 'Finance', subtitle: 'Manage budgets', icon: 'chart-line', color: '#10B981' },
-    { title: 'Wellness', subtitle: 'Healthy living', icon: 'heart-pulse', color: '#F43F5E' },
-    { title: 'Tools', subtitle: 'Daily utilities', icon: 'toolbox-outline', color: '#3B82F6' },
-    { title: 'More', subtitle: 'Explore apps', icon: 'apps', color: '#F97316' },
+    { id: 'finance', title: 'Finance', desc: 'Secure & fast', icon: 'chart-line', badge: 'MANAGE', img: 'cat_finance.png' },
+    { id: 'wellness', title: 'Wellness', desc: 'Active living', icon: 'heart-pulse', badge: 'IMPROVE', img: 'cat_wellness.png' },
+    { id: 'tools', title: 'Tools', desc: 'Daily utility', icon: 'toolbox-outline', badge: 'UTILITY', img: 'cat_tools.png' },
+    { id: 'utilities', title: 'More', desc: 'Explore all', icon: 'apps', badge: 'EXPLORE', img: 'cat_utilities.png' },
   ];
 
   const defaultRecents = [
@@ -203,12 +224,16 @@ export default function HomeScreen() {
           contentContainerStyle={styles.scroll}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          {/* Greeting */}
-          <View style={styles.greetSection}>
-            <Text style={[styles.greetText, { color: theme.colors.text }]}>
-              {getGreeting()}{isLoggedIn && user?.name ? `, ${user.name.split(' ')[0]}` : ''}
+          {/* Centered Welcome */}
+          <View style={styles.welcomeSection}>
+            <Text style={[styles.welcomeTitle, { color: theme.colors.text }]}>
+              {getGreeting()}
             </Text>
-            <Text style={[styles.greetSubtext, { color: theme.colors.textSecondary }]}>Ready to curate your day?</Text>
+            {isLoggedIn && user?.name && (
+              <Text style={[styles.welcomeName, { color: theme.colors.text }]}>
+                {user.name.split(' ')[0]}
+              </Text>
+            )}
           </View>
 
           {/* Search */}
@@ -258,46 +283,105 @@ export default function HomeScreen() {
                   <View style={{ flex: 1 }}>
                     <View style={styles.weatherHeaderRow}>
                       <Text style={styles.weatherLocation}>{locationName.toUpperCase()}</Text>
-                      <MaterialCommunityIcons name="map-marker-radius-outline" size={12} color="rgba(255,255,255,0.6)" />
+                      <MaterialCommunityIcons name="map-marker-radius-outline" size={10} color="rgba(255,255,255,0.6)" />
                     </View>
-                    <Text style={styles.weatherTemp}>{temp}°</Text>
-                    <Text style={styles.weatherCondition}>{weatherMeta.label}</Text>
-                    {locationName.includes('New York') && (
-                      <Text style={styles.locationHint}>Tap to detect your location</Text>
-                    )}
+                    <View style={styles.weatherBodyRow}>
+                      <Text style={styles.weatherTemp}>{temp}°</Text>
+                      <View style={{ marginLeft: 12 }}>
+                        <Text style={styles.weatherCondition}>{weatherMeta.label}</Text>
+                        {locationName.includes('New York') && (
+                          <Text style={styles.locationHint}>Tap to detect</Text>
+                        )}
+                      </View>
+                    </View>
                   </View>
-                  <MaterialCommunityIcons name={weatherMeta.icon as any} size={84} color="rgba(255,255,255,0.9)" />
+                  <MaterialCommunityIcons name={weatherMeta.icon as any} size={48} color="rgba(255,255,255,0.9)" />
                 </LinearGradient>
               </Pressable>
 
-              {/* Categories Grid */}
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Categories</Text>
-                <Pressable>
-                  <Text style={[styles.viewAll, { color: theme.colors.accent }]}>View all</Text>
-                </Pressable>
+              {/* Quote Carousel */}
+              <View style={styles.quoteSection}>
+                <View style={[styles.quoteHeader, { justifyContent: 'space-between' }]}>
+                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <MaterialCommunityIcons name="auto-fix" size={16} color={theme.colors.accent} />
+                      <Text style={[styles.quoteLabel, { color: theme.colors.textTertiary }]}>DAILY INSIGHT</Text>
+                   </View>
+                   <Pressable onPress={shuffleQuotes} hitSlop={12}>
+                      <MaterialCommunityIcons name="cached" size={18} color={theme.colors.accent} />
+                   </Pressable>
+                </View>
+                
+                <LinearGradient
+                   colors={[theme.colors.accent, theme.colors.accentDark]}
+                   start={{ x: 0, y: 0 }}
+                   end={{ x: 1, y: 1 }}
+                   style={styles.quoteCard}
+                >
+                  <View style={styles.quoteControlRow}>
+                    <MaterialCommunityIcons name="chevron-left" size={24} color="rgba(255,255,255,0.6)" />
+                    <ScrollView 
+                       horizontal 
+                       pagingEnabled 
+                       showsHorizontalScrollIndicator={false}
+                       contentContainerStyle={{ paddingHorizontal: 10 }}
+                       onScroll={(e) => {
+                          const idx = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_WIDTH - 120));
+                          if (idx !== quoteIndex) setQuoteIndex(idx);
+                       }}
+                       scrollEventThrottle={16}
+                    >
+                      {curatedQuotes.map((item, idx) => (
+                        <View key={idx} style={styles.quoteItem}>
+                          <Text style={styles.quoteText}>"{item.q}"</Text>
+                          <Text style={styles.quoteAuthor}>— {item.a}</Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+                    <MaterialCommunityIcons name="chevron-right" size={24} color="rgba(255,255,255,0.6)" />
+                  </View>
+                </LinearGradient>
               </View>
+
+              {/* Animated 2x2 Categories Grid */}
               <View style={styles.catGrid}>
                 {categories.map((cat, i) => (
-                  <View key={cat.title} style={styles.catWrap}>
-                    <CategoryCard 
-                      {...cat} 
-                      index={i} 
-                      theme={theme}
+                  <Animated.View 
+                    key={cat.id} 
+                    entering={FadeInDown.delay(i * 100).duration(800)}
+                    style={styles.catWrap}
+                  >
+                    <Pressable
+                      style={[styles.pathaoCard, { backgroundColor: theme.colors.surface }]}
                       onPress={() => {
-                        mediumImpact();
-                        if (cat.title === 'Tools') router.push('/(tabs)/tools' as any);
-                        if (cat.title === 'Wellness') router.push('/(tabs)/wellness' as any);
-                        if (cat.title === 'Finance') router.push('/(tabs)/finance' as any);
-                        if (cat.title === 'More') router.push('/(tabs)/utilities' as any);
+                        lightImpact();
+                        router.push(`/(tabs)/${cat.id}` as any);
                       }}
-                    />
-                  </View>
+                    >
+                      <View style={styles.pathaoInfo}>
+                        <Text style={[styles.pathaoTitle, { color: theme.colors.text }]}>{cat.title}</Text>
+                        <Text style={[styles.pathaoDesc, { color: theme.colors.textSecondary }]}>{cat.desc}</Text>
+                      </View>
+                      
+                      <Animated.View style={[styles.pathaoImgWrap, animatedIconStyle]}>
+                        <MaterialCommunityIcons 
+                          name={cat.icon as any} 
+                          size={60} 
+                          color={theme.colors.accent} 
+                          style={{ opacity: 0.07 }}
+                        />
+                      </Animated.View>
+
+                      <View style={[styles.pathaoBadge, { backgroundColor: theme.colors.surfaceSecondary }]}>
+                         <MaterialCommunityIcons name="check-decagram" size={10} color={theme.colors.accent} />
+                         <Text style={[styles.pathaoBadgeText, { color: theme.colors.textSecondary }]}>{cat.badge}</Text>
+                      </View>
+                    </Pressable>
+                  </Animated.View>
                 ))}
               </View>
 
               {/* Recent */}
-              <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 16 }]}>Recent</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 12 }]}>Recent</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recentScroll}>
                 {displayRecents.map((item: any, i) => (
                   <Pressable 
@@ -308,8 +392,8 @@ export default function HomeScreen() {
                       if (item.route) router.push(item.route as any);
                     }}
                   >
-                    <View style={[styles.recentIconWrap, { backgroundColor: theme.colors.accentMuted }]}>
-                      <MaterialCommunityIcons name={item.icon || 'star'} size={24} color={theme.colors.accent} />
+                    <View style={[styles.recentIconWrap, { backgroundColor: theme.colors.surfaceSecondary }]}>
+                      <MaterialCommunityIcons name={item.icon || 'star'} size={20} color={theme.colors.accent} />
                     </View>
                     <Text style={[styles.recentLabel, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Text>
                   </Pressable>
@@ -341,13 +425,7 @@ export default function HomeScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* FAB */}
-      <Pressable 
-        style={[styles.fab, { bottom: insets.bottom + 100, backgroundColor: theme.colors.accent }]}
-        onPress={() => { mediumImpact(); }}
-      >
-        <MaterialCommunityIcons name="plus" size={32} color="white" />
-      </Pressable>
+
     </View>
   );
 }
@@ -356,13 +434,11 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
   scroll: { paddingHorizontal: 20 },
-  greetSection: { marginTop: 10, marginBottom: 20 },
-  greetText: { fontSize: 32, fontWeight: '900', letterSpacing: -0.5, marginBottom: 4 },
-  greetSubtext: { fontSize: 16, fontWeight: '500' },
+  welcomeSection: { marginBottom: 20, paddingTop: 10, alignItems: 'center' },
+  welcomeTitle: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, textAlign: 'center' },
+  welcomeName: { fontSize: 24, fontWeight: '900', marginTop: -4 },
   
-  searchContainer: {
-    marginBottom: 28,
-  },
+  searchContainer: { marginBottom: 30 },
   resultsPanel: {
     marginBottom: 30,
   },
@@ -385,69 +461,120 @@ const styles = StyleSheet.create({
   noResults: { textAlign: 'center', marginTop: 20, fontSize: 14 },
 
   weatherCard: {
-    borderRadius: 30,
-    padding: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 32,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-  },
-  weatherLocation: { color: '#FFFFFF', opacity: 0.8, fontSize: 12, fontWeight: '700', letterSpacing: 1, marginRight: 6 },
-  weatherHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  locationHint: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-    opacity: 0.8,
-    marginTop: 8,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  weatherTemp: { color: '#FFFFFF', fontSize: 56, fontWeight: '900', lineHeight: 64 },
-  weatherCondition: { color: '#FFFFFF', fontSize: 18, fontWeight: '600' },
-  
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  sectionTitle: { fontSize: 22, fontWeight: '800' },
-  viewAll: { fontSize: 14, fontWeight: '600' },
-  
-  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
-  catWrap: { width: (SCREEN_WIDTH - 52) / 2 },
-  catCard: {
     borderRadius: 24,
     padding: 16,
-    height: 140,
-    justifyContent: 'space-between',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 30,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  weatherLocation: { color: '#FFFFFF', opacity: 0.8, fontSize: 10, fontWeight: '700', letterSpacing: 1, marginRight: 6 },
+  weatherHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  weatherBodyRow: { flexDirection: 'row', alignItems: 'center' },
+  locationHint: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
+    opacity: 0.8,
+    marginTop: 2,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  weatherTemp: { color: '#FFFFFF', fontSize: 36, fontWeight: '900' },
+  weatherCondition: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  
+  quoteSection: { marginBottom: 30 },
+  quoteHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, paddingHorizontal: 4 },
+  quoteLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  quoteCard: { 
+    borderRadius: 28, 
+    padding: 16,
+    elevation: 8,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+  },
+  quoteControlRow: { flexDirection: 'row', alignItems: 'center' },
+  quoteItem: { width: SCREEN_WIDTH - 120, justifyContent: 'center', paddingHorizontal: 10 },
+  quoteText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', fontStyle: 'italic', lineHeight: 22, textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.1)', textShadowRadius: 4 },
+  quoteAuthor: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 4 },
+
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionTitle: { fontSize: 22, fontWeight: '800' },
+
+  catGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, marginBottom: 32 },
+  catWrap: { width: (SCREEN_WIDTH - 52) / 2 },
+  pathaoCard: {
+    height: 110,
+    borderRadius: 28,
+    padding: 16,
+    overflow: 'hidden',
     elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 10,
   },
-  catIconWrap: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  catTitle: { fontSize: 18, fontWeight: '800', marginBottom: 2 },
-  catSubtitle: { fontSize: 12, fontWeight: '500' },
+  pathaoInfo: { zIndex: 2 },
+  pathaoTitle: { fontSize: 20, fontWeight: '900', letterSpacing: -0.5 },
+  pathaoDesc: { fontSize: 11, fontWeight: '500', opacity: 0.7, marginTop: 2 },
+  pathaoImgWrap: { 
+    position: 'absolute', 
+    right: 8, 
+    bottom: 4, 
+    width: 80, 
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 0,
+  },
+  pathaoImg: {
+    width: '100%',
+    height: '100%',
+  },
+  pathaoIconFallback: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pathaoBadge: {
+    position: 'absolute',
+    left: 16,
+    bottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  pathaoBadgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
   
   recentScroll: { marginBottom: 32, overflow: 'visible' },
   recentCard: {
-    width: 120,
-    paddingVertical: 16,
-    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: 'center', 
+    justifyContent: 'center',
     borderRadius: 24,
     marginRight: 12,
+    width: (SCREEN_WIDTH - 52) / 2.5,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 10,
   },
-  recentIconWrap: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  recentIconWrap: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   recentLabel: { fontSize: 12, fontWeight: '700' },
   
   focusCard: { borderRadius: 30, padding: 24, flexDirection: 'row', alignItems: 'center', marginBottom: 40 },
@@ -458,18 +585,5 @@ const styles = StyleSheet.create({
   focusBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, alignSelf: 'flex-start' },
   focusIconBox: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   
-  fab: {
-    position: 'absolute',
-    right: 20,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-  },
+
 });

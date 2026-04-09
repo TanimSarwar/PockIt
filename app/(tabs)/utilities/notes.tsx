@@ -54,10 +54,11 @@ export default function NotesScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <ScreenHeader
+          category="UTILITIES / NOTES"
           title="Edit Note"
           rightAction={
             <Pressable onPress={saveNote} accessibilityLabel="Save note">
-              <Text style={{ color: theme.colors.accent, fontWeight: '600' }}>Done</Text>
+              <Text style={{ color: theme.colors.accent, fontWeight: '600', paddingRight: 8 }}>Done</Text>
             </Pressable>
           }
         />
@@ -89,7 +90,9 @@ export default function NotesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScreenHeader
-        title="Notes"
+        category="UTILITIES / NOTES"
+        title="My Notes"
+        subtitle="Capture and search your personal thoughts."
         rightAction={
           <Pressable onPress={createNew} accessibilityLabel="New note">
             <MaterialCommunityIcons name="plus-circle" size={28} color={theme.colors.accent} />

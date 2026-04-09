@@ -16,6 +16,7 @@ interface Feature {
   description?: string;
   route: string;
   category: string;
+  layout?: 'regular' | 'wide' | 'narrow';
 }
 
 interface Section {
@@ -48,19 +49,23 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
       )
     : null;
 
-  const renderFeature = (f: Feature) => (
-    <View key={f.id} style={styles.gridItem}>
-      <FeatureCard
-        icon={f.icon}
-        title={f.name}
-        description={f.description}
-        category={category}
-        onPress={() => onNavigate(f.route, f.id)}
-        onLongPress={() => togglePin(f.id)}
-        isPinned={pinnedFeatures.includes(f.id)}
-      />
-    </View>
-  );
+  const renderFeature = (f: Feature) => {
+    const isFullWidth = f.layout === 'wide' || f.layout === 'narrow';
+    return (
+      <View key={f.id} style={[styles.gridItem, { width: isFullWidth ? '100%' : '48%' }]}>
+        <FeatureCard
+          icon={f.icon}
+          title={f.name}
+          description={f.description}
+          category={category}
+          layout={f.layout}
+          onPress={() => onNavigate(f.route, f.id)}
+          onLongPress={() => togglePin(f.id)}
+          isPinned={pinnedFeatures.includes(f.id)}
+        />
+      </View>
+    );
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
@@ -254,5 +259,5 @@ const styles = StyleSheet.create({
   sectionLine:   { flex: 1, height: 1, borderRadius: 1 },
 
   grid:     { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  gridItem: { width: '48%', marginBottom: 16 },
+  gridItem: { marginBottom: 16 },
 });

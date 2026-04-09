@@ -13,6 +13,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../../store/theme';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { lightImpact, mediumImpact, notificationSuccess, selectionFeedback } from '../../../lib/haptics';
 
 const { width: SW } = Dimensions.get('window');
@@ -85,19 +86,10 @@ export default function PasswordGeneratorScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: theme.colors.background }]}>
-      {/* ── Header ── */}
-      <View style={s.pageHead}>
-        <View style={s.titleRow}>
-          <Pressable 
-            onPress={() => router.replace('/(tabs)/tools')} 
-            style={[s.backBtn, { backgroundColor: theme.colors.surfaceTertiary }]}
-          >
-            <MaterialCommunityIcons name="arrow-left" size={20} color={theme.colors.accent} />
-          </Pressable>
-          <Text style={[s.pageTitle, { color: theme.colors.text }]}>Password Tool</Text>
-        </View>
-        <Text style={[s.pageSub, { color: theme.colors.textSecondary }]}>Generate secure, random passwords easily.</Text>
-      </View>
+      <ScreenHeader
+        category="TOOLS / SECURITY"
+        title="Password Tool"
+      />
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         
@@ -206,11 +198,7 @@ export default function PasswordGeneratorScreen() {
 const s = StyleSheet.create({
   root:       { flex: 1 },
   scroll:     { paddingHorizontal: 20, paddingBottom: 100 },
-  pageHead:   { paddingHorizontal: 20, paddingTop: 10, marginBottom: 20 },
-  titleRow:   { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-  backBtn:    { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  pageTitle:  { fontSize: 26, fontWeight: '900', letterSpacing: -1 },
-  pageSub:    { fontSize: 13, fontWeight: '500', marginLeft: 48, opacity: 0.8 },
+
 
   resultCard: { borderRadius: 30, padding: 24, marginBottom: 20,
     ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 20 }, android: { elevation: 6 } })

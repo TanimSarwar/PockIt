@@ -52,13 +52,14 @@ export default function HabitTrackerScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScreenHeader
-        title="Habit Tracker"
-        rightAction={
-          <Pressable onPress={() => setShowModal(true)} accessibilityLabel="Add habit">
-            <MaterialCommunityIcons name="plus-circle" size={28} color={theme.colors.accent} />
-          </Pressable>
-        }
+      <ScreenHeader 
+         category="UTILITIES / TOOLS" 
+         title="Habit Tracker" 
+         rightAction={
+           <Pressable onPress={() => setShowModal(true)} accessibilityLabel="Add habit">
+             <MaterialCommunityIcons name="plus-circle" size={28} color={theme.colors.accent} />
+           </Pressable>
+         }
       />
       <ScrollView contentContainerStyle={styles.content}>
         {habits.length === 0 && (
