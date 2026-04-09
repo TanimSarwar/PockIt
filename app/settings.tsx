@@ -12,9 +12,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+
 import { useTheme, ACCENT_OPTIONS } from '../store/theme';
 import { useSettingsStore } from '../store/settings';
 import { lightImpact } from '../lib/haptics';
+import { Card } from '../components/ui/Card';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { THEME_PALETTES } from '../constants/theme';
 
@@ -65,7 +67,7 @@ export default function SettingsScreen() {
           APPEARANCE
         </Text>
 
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, theme.shadows.card]}>
+        <Card padding="md" style={{ marginBottom: 10 }}>
           <Text style={[styles.cardTitle, { color: theme.colors.text, fontFamily: theme.fontFamily.semiBold }]}>Mode</Text>
           <View style={styles.modeRow}>
             {(['light', 'dark', 'system'] as const).map((m) => {
@@ -94,10 +96,10 @@ export default function SettingsScreen() {
               );
             })}
           </View>
-        </View>
+        </Card>
 
         {/* ── Theme Palette ── */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, marginTop: 10 }, theme.shadows.card]}>
+        <Card padding="md" style={{ marginTop: 10 }}>
           <Text style={[styles.cardTitle, { color: theme.colors.text, fontFamily: theme.fontFamily.semiBold }]}>Theme</Text>
           <Text style={[styles.cardSubtitle, { color: theme.colors.textSecondary, fontFamily: theme.fontFamily.regular }]}>
             Choose a color palette for the entire app
@@ -139,14 +141,14 @@ export default function SettingsScreen() {
               );
             })}
           </View>
-        </View>
+        </Card>
 
         {/* ── Notifications ── */}
         <Text style={[styles.groupLabel, { color: theme.colors.textSecondary, fontFamily: theme.fontFamily.semiBold, marginTop: 20 }]}>
           NOTIFICATIONS
         </Text>
 
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, theme.shadows.card]}>
+        <Card padding="none">
           {[
             { label: 'Enable Notifications', value: settings.notificationsEnabled, toggle: settings.toggleNotifications },
             { label: 'Water Reminders',       value: settings.waterReminderEnabled,  toggle: settings.toggleWaterReminder },
@@ -156,6 +158,7 @@ export default function SettingsScreen() {
               key={row.label}
               style={[
                 styles.switchRow,
+                { paddingHorizontal: 16 },
                 i < arr.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
               ]}
             >
@@ -168,26 +171,26 @@ export default function SettingsScreen() {
               />
             </View>
           ))}
-        </View>
+        </Card>
 
         {/* ── Data & Privacy ── */}
         <Text style={[styles.groupLabel, { color: theme.colors.textSecondary, fontFamily: theme.fontFamily.semiBold, marginTop: 20 }]}>
           DATA & PRIVACY
         </Text>
 
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, theme.shadows.card]}>
-          <Pressable style={styles.switchRow} onPress={clearCache}>
+        <Card padding="none">
+          <Pressable style={[styles.switchRow, { paddingHorizontal: 16 }]} onPress={clearCache}>
             <Text style={[styles.switchLabel, { color: theme.colors.error, fontFamily: theme.fontFamily.regular }]}>Clear Cache</Text>
             <MaterialCommunityIcons name="delete-outline" size={20} color={theme.colors.error} />
           </Pressable>
-        </View>
+        </Card>
 
         {/* ── About ── */}
         <Text style={[styles.groupLabel, { color: theme.colors.textSecondary, fontFamily: theme.fontFamily.semiBold, marginTop: 20 }]}>
           ABOUT
         </Text>
 
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, theme.shadows.card]}>
+        <Card padding="md">
           <View style={styles.aboutRow}>
             <LinearGradient colors={[...theme.colors.gradient]} style={styles.aboutIcon} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
               <MaterialCommunityIcons name="lightning-bolt" size={22} color="#FFFFFF" />
@@ -199,7 +202,7 @@ export default function SettingsScreen() {
               </Text>
             </View>
           </View>
-        </View>
+        </Card>
       </ScrollView>
     </View>
   );

@@ -15,13 +15,14 @@ import { useTheme } from '../../store/theme';
 interface ModalProps {
   visible: boolean;
   onClose: () => void;
+  onShow?: () => void;
   title?: string;
   children: React.ReactNode;
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-export function Modal({ visible, onClose, title, children }: ModalProps) {
+export function Modal({ visible, onClose, onShow, title, children }: ModalProps) {
   const { theme } = useTheme();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -77,6 +78,7 @@ export function Modal({ visible, onClose, title, children }: ModalProps) {
       animationType="none"
       statusBarTranslucent
       onRequestClose={handleClose}
+      onShow={onShow}
     >
       <KeyboardAvoidingView
         style={styles.root}

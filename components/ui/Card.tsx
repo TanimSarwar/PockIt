@@ -8,6 +8,7 @@ import {
   ViewStyle,
   StyleProp,
 } from 'react-native';
+
 import { useTheme } from '../../store/theme';
 import { lightImpact } from '../../lib/haptics';
 
@@ -37,7 +38,7 @@ export function Card({
   subtitle,
   style,
 }: CardProps) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = useCallback(() => {
@@ -97,7 +98,9 @@ export function Card({
     </>
   );
 
-  const containerStyle: ViewStyle[] = [
+
+
+  const containerStyle: any[] = [
     styles.container,
     theme.shadows.card,
     {
@@ -107,7 +110,16 @@ export function Card({
       borderColor: theme.colors.borderLight,
       padding: paddingMap[padding],
     },
+    style,
   ];
+
+  const renderContent = () => {
+    return (
+      <View style={containerStyle}>
+        {cardContent}
+      </View>
+    );
+  };
 
   if (onPress) {
     return (
@@ -118,23 +130,15 @@ export function Card({
         accessibilityRole="button"
       >
         <Animated.View
-          style={[
-            ...containerStyle,
-            { transform: [{ scale: scaleAnim }] },
-            style,
-          ]}
+          style={{ transform: [{ scale: scaleAnim }] }}
         >
-          {cardContent}
+          {renderContent()}
         </Animated.View>
       </Pressable>
     );
   }
 
-  return (
-    <View style={[...containerStyle, style]}>
-      {cardContent}
-    </View>
-  );
+  return renderContent();
 }
 
 const styles = StyleSheet.create({

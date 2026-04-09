@@ -6,7 +6,7 @@ export interface Feature {
   icon: string;
   route: string;
   category: FeatureCategory;
-  description: string;
+  description?: string;
   layout?: 'regular' | 'wide' | 'narrow';
 }
 
@@ -58,6 +58,8 @@ export const features: Feature[] = [
   { id: 'flashcards', name: 'Flashcards', icon: 'cards-outline', route: '/(tabs)/utilities/flashcards', category: 'utilities', description: 'Create and study flashcard decks', layout: 'wide' },
   { id: 'drawing-pad', name: 'Drawing Pad', icon: 'draw', route: '/(tabs)/utilities/drawing-pad', category: 'utilities', description: 'Doodle and sketch freely', layout: 'wide' },
   { id: 'coin-flip', name: 'Coin Flip', icon: 'circle-half-full', route: '/(tabs)/utilities/coin-flip', category: 'utilities', description: 'Flip a coin with animation', layout: 'regular' },
+  { id: 'compass', name: 'Compass', icon: 'compass-outline', route: '/(tabs)/utilities/compass', category: 'utilities', description: 'Digital direction compass', layout: 'regular' },
+  { id: 'prayer-times', name: 'Prayer Times', icon: 'mosque', route: '/(tabs)/utilities/prayer-times', category: 'utilities', description: 'Daily Salah, sunrise & sunset times', layout: 'regular' },
 ];
 
 export interface CategoryInfo {
@@ -91,6 +93,6 @@ export function searchFeatures(query: string): Feature[] {
   const q = query.toLowerCase().trim();
   if (!q) return features;
   return features.filter(
-    (f) => f.name.toLowerCase().includes(q) || f.description.toLowerCase().includes(q)
+    (f) => f.name.toLowerCase().includes(q) || f.description?.toLowerCase().includes(q)
   );
 }

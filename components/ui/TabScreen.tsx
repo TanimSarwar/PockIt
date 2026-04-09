@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, Pressable, Platform, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Animated, { 
+  FadeInDown, 
+  FadeInRight, 
+  useAnimatedStyle, 
+  useSharedValue, 
+  withSpring,
+  withDelay,
+  withRepeat,
+  withTiming,
+  interpolate
+} from 'react-native-reanimated';
 import { useTheme } from '../../store/theme';
 import { useFavoritesStore } from '../../store/favorites';
 import { FeatureCard } from './FeatureCard';
 import { PockItInput } from './Input';
 import type { FeatureCategory } from '../../constants/theme';
+
+const { width } = Dimensions.get('window');
 
 interface Feature {
   id: string;
@@ -34,6 +47,43 @@ interface TabScreenProps {
   onNavigate: (route: string, id: string) => void;
 }
 
+const Bubble = ({ size, top, left, delay, opacity = 0.15 }: { size: number, top: number, left: number, delay: number, opacity?: number }) => {
+  const move = useSharedValue(0);
+
+  useEffect(() => {
+    move.value = withRepeat(
+      withTiming(1, { duration: 3000 + delay, }),
+      -1,
+      true
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: interpolate(move.value, [0, 1], [0, -15]) },
+      { translateX: interpolate(move.value, [0, 1], [0, 10]) },
+    ],
+  }));
+
+  return (
+    <Animated.View 
+      style={[
+        styles.bubble, 
+        { 
+          width: size, 
+          height: size, 
+          borderRadius: size / 2, 
+          top, 
+          left, 
+          opacity,
+          backgroundColor: '#FFFFFF'
+        },
+        animatedStyle
+      ]} 
+    />
+  );
+};
+
 export function TabScreen({ title, subtitle, icon, category, features, sections, onNavigate }: TabScreenProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -49,10 +99,14 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
       )
     : null;
 
-  const renderFeature = (f: Feature) => {
+  const renderFeature = (f: Feature, index: number) => {
     const isFullWidth = f.layout === 'wide' || f.layout === 'narrow';
     return (
-      <View key={f.id} style={[styles.gridItem, { width: isFullWidth ? '100%' : '48%' }]}>
+      <Animated.View 
+        key={f.id} 
+        entering={FadeInDown.delay(index * 50).springify().damping(12)}
+        style={[styles.gridItem, { width: isFullWidth ? '100%' : '48%' }]}
+      >
         <FeatureCard
           icon={f.icon}
           title={f.name}
@@ -63,7 +117,7 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
           onLongPress={() => togglePin(f.id)}
           isPinned={pinnedFeatures.includes(f.id)}
         />
-      </View>
+      </Animated.View>
     );
   };
 
@@ -71,44 +125,51 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Header Card */}
-        <View style={styles.headerWrapper}>
+        <Animated.View 
+          entering={FadeInDown.duration(600).springify()}
+          style={styles.headerWrapper}
+        >
           <LinearGradient
             colors={theme.colors.gradient as any}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.headerCard}
           >
+            {/* Decorative Bubbles */}
+            <Bubble size={120} top={-40} left={-30} delay={0} opacity={0.12} />
+            <Bubble size={80} top={20} left={width - 100} delay={500} opacity={0.08} />
+            <Bubble size={40} top={80} left={width / 2} delay={1000} opacity={0.1} />
+            
             <View style={styles.headerTop}>
-              <View style={styles.vaultBadge}>
-                <Text style={styles.vaultText}>VAULT</Text>
-              </View>
-              <View style={styles.countPill}>
-                <Text style={styles.countValue}>{allFeatures.length} tools</Text>
-              </View>
-            </View>
-
-            <View style={styles.headerBottom}>
               <View style={styles.headerTextGroup}>
                 <Text style={styles.headerTitle}>{title}</Text>
                 <Text style={styles.headerSubtitle}>{subtitle}</Text>
               </View>
-              <View style={styles.activeLabel}>
-                <Text style={styles.activeText}>ACTIVE</Text>
+              <View style={styles.countPill}>
+                <Text style={[styles.countValue, { color: theme.colors.accent }]}>
+                  {allFeatures.length} {allFeatures.length === 1 ? 'tool' : 'tools'}
+                </Text>
               </View>
             </View>
           </LinearGradient>
-        </View>
+        </Animated.View>
 
         <View style={styles.body}>
-          {/* Search Bar */}
-          <View style={styles.searchContainer}>
+          {/* Floating Overlapping Search Bar */}
+          <Animated.View 
+            entering={FadeInDown.delay(200).duration(500)}
+            style={styles.floatingSearchWrapper}
+          >
             <PockItInput 
-              placeholder={`Search in ${title}...`}
+              placeholder={`Quick search ${title.toLowerCase()}...`}
               value={search}
               onChangeText={setSearch}
-              icon={<MaterialCommunityIcons name="magnify" size={22} color={theme.colors.accent} />}
+              icon={<MaterialCommunityIcons name="magnify" size={24} color={theme.colors.accent} />}
+              containerStyle={styles.floatingSearchContainer}
+              wrapperStyle={styles.floatingSearchWrapperStyle}
+              inputStyle={styles.floatingSearchInput}
             />
-          </View>
+          </Animated.View>
 
           {filteredFeatures ? (
             <View>
@@ -116,7 +177,7 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
                 {filteredFeatures.length} tools found
               </Text>
               <View style={styles.grid}>
-                {filteredFeatures.map(renderFeature)}
+                {filteredFeatures.map((f, i) => renderFeature(f, i))}
               </View>
               {filteredFeatures.length === 0 && (
                 <View style={styles.emptyResults}>
@@ -126,22 +187,30 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
               )}
             </View>
           ) : sections ? (
-            sections.map((section) => (
+            sections.map((section, sIndex) => (
               <View key={section.title} style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionTitle, { color: theme.colors.text, fontFamily: theme.fontFamily.bold }]}>
-                    {section.title}
-                  </Text>
-                  <View style={[styles.sectionLine, { backgroundColor: theme.colors.borderLight }]} />
-                </View>
-                <View style={styles.grid}>
-                  {section.features.map(renderFeature)}
+                {sIndex > 0 && (
+                  <View style={styles.dividerContainer}>
+                    <LinearGradient
+                      colors={['transparent', theme.colors.borderLight, 'transparent']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.dividerGradient}
+                    />
+                    <View style={[styles.dividerDot, { backgroundColor: theme.colors.borderLight }]} />
+                  </View>
+                )}
+                
+                <View style={[styles.sectionCard, { backgroundColor: theme.colors.surfaceSecondary }]}>
+                  <View style={styles.grid}>
+                    {section.features.map((f, i) => renderFeature(f, i))}
+                  </View>
                 </View>
               </View>
             ))
           ) : (
             <View style={styles.grid}>
-              {allFeatures.map(renderFeature)}
+              {allFeatures.map((f, i) => renderFeature(f, i))}
             </View>
           )}
         </View>
@@ -155,86 +224,104 @@ const styles = StyleSheet.create({
   headerWrapper: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   headerCard: {
-    borderRadius: 28,
+    borderRadius: 32,
     padding: 24,
-    minHeight: 140,
-    justifyContent: 'space-between',
+    minHeight: 130,
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 15,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    paddingBottom: 40, // Space for the overlap
+  },
+  bubble: {
+    position: 'absolute',
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    zIndex: 1,
   },
-  vaultBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+  integratedSearch: {
+    zIndex: 1,
   },
-  vaultText: {
+  glassSearchContainer: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    height: 46,
+  },
+  glassSearchInput: {
     color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1,
+    fontSize: 15,
   },
   countPill: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingVertical: 5,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   countValue: {
-    color: '#FF4C9F',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
-  },
-  headerBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
   },
   headerTextGroup: {
     flex: 1,
+    marginRight: 10,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -0.5,
+    letterSpacing: -0.8,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 2,
-  },
-  activeLabel: {
-    alignItems: 'center',
-  },
-  activeText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginTop: 2,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: -2,
+    fontWeight: '500',
   },
 
-  body:    { paddingHorizontal: 16, paddingTop: 10 },
+  body:    { paddingHorizontal: 16, paddingTop: 0 },
   
-  searchContainer: {
+  floatingSearchWrapper: {
+    marginTop: -28,
     marginBottom: 24,
+    zIndex: 10,
   },
-  resultsLabel: {
-    fontSize: 13,
-    marginBottom: 16,
-    paddingHorizontal: 4,
+  floatingSearchContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    height: 56,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
+    overflow: 'hidden',
+  },
+  floatingSearchWrapperStyle: {
+    backgroundColor: 'transparent',
+    borderRadius: 28,
+    height: '100%',
+    paddingHorizontal: 16,
+  },
+  floatingSearchInput: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   emptyResults: {
     alignItems: 'center',
@@ -247,17 +334,45 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  section: { marginBottom: 30 },
-  sectionHeader: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 16, 
-    marginBottom: 20,
+  section: { marginBottom: 0 },
+  sectionCard: {
+    borderRadius: 24,
+    padding: 10,
+    paddingBottom: 0, 
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.02)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 10,
+    elevation: 1,
+  },
+  dividerContainer: {
+    height: 6,
+    marginTop: 4,
+    marginBottom: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dividerGradient: {
+    width: '100%',
+    height: 1,
+  },
+  dividerDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    position: 'absolute',
+    opacity: 0.4,
+  },
+
+  resultsLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 12,
+    marginTop: 4,
     paddingHorizontal: 4,
   },
-  sectionTitle:  { fontSize: 20, letterSpacing: -0.5 },
-  sectionLine:   { flex: 1, height: 1, borderRadius: 1 },
-
   grid:     { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  gridItem: { marginBottom: 16 },
+  gridItem: { marginBottom: 12 },
 });

@@ -1,6 +1,15 @@
-import React, { useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Animated, { 
+  useAnimatedStyle, 
+  useSharedValue, 
+  withSpring, 
+  withTiming,
+  withDelay,
+  FadeInDown
+} from 'react-native-reanimated';
+
 import { useTheme } from '../../store/theme';
 import { CATEGORY_COLORS, type FeatureCategory } from '../../constants/theme';
 import { lightImpact } from '../../lib/haptics';
@@ -36,13 +45,38 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   layout = 'regular',
 }) => {
   const { theme, isDark } = useTheme();
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
+  const iconDraw = useSharedValue(0);
+  const iconRotate = useSharedValue(0);
 
-  const handlePressIn = () =>
-    Animated.spring(scaleAnim, { toValue: 0.94, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
 
-  const handlePressOut = () =>
-    Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
+  React.useEffect(() => {
+    iconDraw.value = withDelay(100, withSpring(1, { damping: 12, stiffness: 150 }));
+    iconRotate.value = withDelay(100, withSpring(1, { damping: 10, stiffness: 120 }));
+  }, []);
+
+  const iconAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: iconDraw.value,
+    transform: [
+      { scale: iconDraw.value },
+      { rotate: `${(1 - iconRotate.value) * 15}deg` },
+    ],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.96, { damping: 15, stiffness: 200 });
+    opacity.value = withTiming(0.9, { duration: 100 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15, stiffness: 200 });
+    opacity.value = withTiming(1, { duration: 100 });
+  };
 
   const handlePress = () => {
     lightImpact();
@@ -58,15 +92,17 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
       : CATEGORY_COLORS[category]?.light
     : null;
 
-  const resolvedIconBg    = iconBg    ?? catColors?.bg    ?? theme.colors.accentLight;
-  const resolvedIconColor = iconColor ?? catColors?.icon  ?? theme.colors.accent;
+  const resolvedIconColor = iconColor ?? catColors?.icon ?? theme.colors.accent;
 
   const iconSize      = isSmall ? 18 : 22;
   const iconBoxSize   = isSmall ? 40 : 48;
-  const iconBoxRadius = isSmall ? 12 : 16;
+
+  const isNarrow = layout === 'narrow';
+  const isWide = layout === 'wide';
+  const isRegular = layout === 'regular';
 
   return (
-    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+    <Animated.View style={[animatedStyle]}>
       <Pressable
         onPress={handlePress}
         onLongPress={onLongPress}
@@ -77,35 +113,42 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
           styles.container,
           {
             backgroundColor: theme.colors.surface,
-            borderRadius: layout === 'narrow' ? 24 : 32,
-            padding: layout === 'narrow' ? 12 : 20,
-            flexDirection: layout === 'regular' ? 'column' : 'row',
+            borderRadius: isNarrow ? 20 : 28,
+            paddingVertical: isNarrow ? 10 : 12,
+            paddingHorizontal: isNarrow ? 12 : 14,
+            flexDirection: isRegular ? 'column' : 'row',
             alignItems: 'center',
-            justifyContent: layout === 'regular' ? 'center' : 'flex-start',
-            minHeight: layout === 'wide' ? 110 : layout === 'narrow' ? 68 : 140,
+            justifyContent: isRegular ? 'center' : 'flex-start',
+            minHeight: isWide ? 85 : isNarrow ? 60 : (description ? 120 : 100),
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)',
+            elevation: 2,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: isDark ? 0.2 : 0.03,
+            shadowRadius: 10,
           },
-          theme.shadows.card,
         ]}
       >
-        {/* Icon */}
-        <View
+        {/* Icon (No Background) */}
+        <Animated.View
           style={[
             styles.iconBox,
             {
-              backgroundColor: resolvedIconBg,
-              width: layout === 'narrow' ? 36 : iconBoxSize,
-              height: layout === 'narrow' ? 36 : iconBoxSize,
-              borderRadius: layout === 'narrow' ? 10 : iconBoxRadius,
-              marginRight: layout !== 'regular' ? 16 : 0,
+              width: isNarrow ? 36 : iconBoxSize,
+              height: isNarrow ? 36 : iconBoxSize,
+              marginRight: !isRegular ? 14 : 0,
+              marginBottom: isRegular ? 8 : 0,
             },
+            iconAnimatedStyle
           ]}
         >
           <MaterialCommunityIcons
             name={icon as any}
-            size={layout === 'narrow' ? 16 : iconSize}
+            size={isNarrow ? 20 : iconSize + 2}
             color={resolvedIconColor}
           />
-        </View>
+        </Animated.View>
 
         {/* Pin badge */}
         {isPinned && (
@@ -115,37 +158,41 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
         )}
 
         {/* Text Container */}
-        <View style={{ flex: 1, alignItems: layout === 'regular' ? 'center' : 'flex-start' }}>
+        <View style={{ flex: 1, alignItems: isRegular ? 'center' : 'flex-start' }}>
           <Text
             style={[
               styles.title,
               {
                 color: theme.colors.text,
-                fontSize: layout === 'narrow' ? 14 : 15,
-                marginTop: layout === 'regular' ? 12 : 0,
+                fontSize: isNarrow ? 14 : 15,
                 fontFamily: theme.fontFamily.bold,
-                textAlign: layout === 'regular' ? 'center' : 'left',
+                textAlign: isRegular ? 'center' : 'left',
               },
             ]}
             numberOfLines={1}
           >
             {title}
           </Text>
-          {description && layout !== 'narrow' && (
+          {description && !isNarrow && (
             <Text
               style={[
                 styles.description,
-                { color: theme.colors.textTertiary, fontFamily: theme.fontFamily.medium, textAlign: layout === 'regular' ? 'center' : 'left' },
+                { 
+                  color: theme.colors.textSecondary, 
+                  fontFamily: theme.fontFamily.medium, 
+                  textAlign: isRegular ? 'center' : 'left',
+                  marginTop: 2,
+                },
               ]}
-              numberOfLines={layout === 'wide' ? 2 : 1}
+              numberOfLines={isWide ? 2 : 1}
             >
               {description}
             </Text>
           )}
         </View>
 
-        {layout === 'narrow' && (
-           <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.textTertiary} style={{ opacity: 0.5 }} />
+        {isNarrow && (
+           <MaterialCommunityIcons name="chevron-right" size={18} color={theme.colors.textTertiary} style={{ opacity: 0.4 }} />
         )}
       </Pressable>
     </Animated.View>
@@ -154,10 +201,8 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
     position: 'relative',
-    minHeight: 140,
-    justifyContent: 'center',
+    overflow: 'hidden',
   },
   iconBox: {
     alignItems: 'center',
@@ -165,23 +210,20 @@ const styles = StyleSheet.create({
   },
   pinBadge: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    top: 8,
+    right: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
   title: {
-    textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 20,
   },
   description: {
-    fontSize: 10,
-    marginTop: 4,
-    textAlign: 'center',
-    opacity: 0.7,
-    letterSpacing: 0.2,
+    fontSize: 11,
+    opacity: 0.8,
   },
 });

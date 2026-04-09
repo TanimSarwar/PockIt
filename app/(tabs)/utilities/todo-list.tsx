@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Modal as RNModal,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -140,6 +141,14 @@ export default function TodoListScreen() {
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
   const [filter, setFilter] = useState<typeof FILTERS[number]>('All');
+  const inputRef = useRef<TextInput>(null);
+
+  const focusInput = () => {
+    if (Platform.OS === 'web') return; // autoFocus usually works on web
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
+  };
 
   const filtered = useMemo(() => {
     return tasks
@@ -241,6 +250,7 @@ export default function TodoListScreen() {
         transparent 
         animationType="fade"
         onRequestClose={() => setShowModal(false)}
+        onShow={focusInput}
       >
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
@@ -258,13 +268,14 @@ export default function TodoListScreen() {
 
               <View style={styles.modalFields}>
                 <Input 
+                  ref={inputRef}
                   label="TASK DESCRIPTION" 
                   value={title} 
                   onChangeText={setTitle} 
                   placeholder="e.g. Finish the report" 
                   inputStyle={styles.textCenter}
                   containerStyle={styles.fieldItem}
-                  autoFocus 
+                  autoFocus={Platform.OS === 'web'} 
                 />
                 
                 <View style={styles.fieldItem}>

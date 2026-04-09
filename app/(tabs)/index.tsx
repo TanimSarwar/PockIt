@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+
 import * as Location from 'expo-location';
 import Animated, { 
   FadeInDown,
@@ -23,6 +24,7 @@ import Animated, {
   withSequence,
   withTiming,
   useSharedValue,
+  interpolate,
 } from 'react-native-reanimated';
 import { useTheme } from '../../store/theme';
 import { useFavoritesStore } from '../../store/favorites';
@@ -33,6 +35,9 @@ import { lightImpact, mediumImpact } from '../../lib/haptics';
 import { PockItInput } from '../../components/ui/Input';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const MAX_WIDTH = 800; // Limit width on large desktop screens
+const IS_LARGE_WEB = Platform.OS === 'web' && SCREEN_WIDTH > MAX_WIDTH;
+const CONTENT_WIDTH = IS_LARGE_WEB ? MAX_WIDTH : SCREEN_WIDTH;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -59,6 +64,44 @@ const WEATHER_ICONS: Record<number, { icon: string; label: string }> = {
 function getWeatherMeta(code: number) {
   return WEATHER_ICONS[code] ?? { icon: 'weather-partly-cloudy', label: 'Weather' };
 }
+
+const Bubble = ({ size, top, left, delay, opacity = 0.15 }: { size: number, top: number, left: number, delay: number, opacity?: number }) => {
+  const move = useSharedValue(0);
+
+  useEffect(() => {
+    move.value = withRepeat(
+      withTiming(1, { duration: 3000 + delay }),
+      -1,
+      true
+    );
+  }, [delay, move]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: interpolate(move.value, [0, 1], [0, -15]) },
+      { translateX: interpolate(move.value, [0, 1], [0, 10]) },
+    ],
+  }));
+
+  return (
+    <Animated.View 
+      style={[
+        { 
+          position: 'absolute',
+          width: size, 
+          height: size, 
+          borderRadius: size / 2, 
+          top, 
+          left, 
+          opacity,
+          backgroundColor: '#FFFFFF',
+          zIndex: 0
+        },
+        animatedStyle
+      ]} 
+    />
+  );
+};
 
 
 
@@ -212,39 +255,66 @@ export default function HomeScreen() {
   const filteredTools = search.length > 0
     ? features.filter(f => 
         f.name.toLowerCase().includes(search.toLowerCase()) || 
-        f.description.toLowerCase().includes(search.toLowerCase())
+        f.description?.toLowerCase().includes(search.toLowerCase())
       )
     : [];
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background, alignItems: 'center' }]}>
+      <SafeAreaView style={[styles.safe, { width: '100%', maxWidth: MAX_WIDTH }]} edges={['top']}>
         <ScrollView 
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={{ paddingBottom: 20 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          {/* Centered Welcome */}
-          <View style={styles.welcomeSection}>
-            <Text style={[styles.welcomeTitle, { color: theme.colors.text }]}>
-              {getGreeting()}
-            </Text>
-            {isLoggedIn && user?.name && (
-              <Text style={[styles.welcomeName, { color: theme.colors.text }]}>
-                {user.name.split(' ')[0]}
-              </Text>
-            )}
-          </View>
+          {/* Premium Header */}
+          <Animated.View 
+            entering={FadeInDown.duration(600).springify()}
+            style={styles.headerWrapper}
+          >
+            <LinearGradient
+              colors={theme.colors.gradient as any}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.headerCard}
+            >
+              <Bubble size={120} top={-40} left={-30} delay={0} opacity={0.12} />
+              <Bubble size={80} top={20} left={SCREEN_WIDTH - 100} delay={500} opacity={0.08} />
+              <Bubble size={40} top={80} left={SCREEN_WIDTH / 2} delay={1000} opacity={0.1} />
+              
+              <View style={styles.headerTop}>
+                <View style={styles.headerTextGroup}>
+                  <Text style={styles.headerGreeting}>{getGreeting()}</Text>
+                  {isLoggedIn && user?.name ? (
+                    <Text style={styles.headerName}>{user.name.split(' ')[0]}</Text>
+                  ) : (
+                    <Text style={styles.headerName}>PockIt User</Text>
+                  )}
+                </View>
+                <View style={[styles.headerIconCircle, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                   <MaterialCommunityIcons name="account-circle-outline" size={32} color="#FFFFFF" />
+                </View>
+              </View>
+            </LinearGradient>
+          </Animated.View>
 
-          {/* Search */}
-          <View style={styles.searchContainer}>
+          {/* Floating Overlapping Search */}
+          <Animated.View 
+            entering={FadeInDown.delay(200).duration(800)}
+            style={styles.floatingSearchWrapper}
+          >
             <PockItInput
               placeholder="Search your tools..."
               value={search}
               onChangeText={setSearch}
-              icon={<MaterialCommunityIcons name="magnify" size={22} color={theme.colors.accent} />}
+              icon={<MaterialCommunityIcons name="magnify" size={24} color={theme.colors.accent} />}
+              containerStyle={styles.floatingSearchContainer}
+              wrapperStyle={styles.floatingSearchWrapperStyle}
+              inputStyle={styles.floatingSearchInput}
             />
-          </View>
+          </Animated.View>
+
+          <View style={styles.bodyContent}>
 
           {search.length > 0 ? (
             <View style={styles.resultsPanel}>
@@ -317,6 +387,7 @@ export default function HomeScreen() {
                    end={{ x: 1, y: 1 }}
                    style={styles.quoteCard}
                 >
+
                   <View style={styles.quoteControlRow}>
                     <MaterialCommunityIcons name="chevron-left" size={24} color="rgba(255,255,255,0.6)" />
                     <ScrollView 
@@ -325,7 +396,8 @@ export default function HomeScreen() {
                        showsHorizontalScrollIndicator={false}
                        contentContainerStyle={{ paddingHorizontal: 10 }}
                        onScroll={(e) => {
-                          const idx = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_WIDTH - 120));
+                          const containerWidth = IS_LARGE_WEB ? (MAX_WIDTH - 120) : (SCREEN_WIDTH - 120);
+                          const idx = Math.round(e.nativeEvent.contentOffset.x / containerWidth);
                           if (idx !== quoteIndex) setQuoteIndex(idx);
                        }}
                        scrollEventThrottle={16}
@@ -422,6 +494,7 @@ export default function HomeScreen() {
           )}
 
           <View style={{ height: 100 }} />
+          </View>
         </ScrollView>
       </SafeAreaView>
 
@@ -433,12 +506,91 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
-  scroll: { paddingHorizontal: 20 },
-  welcomeSection: { marginBottom: 20, paddingTop: 10, alignItems: 'center' },
-  welcomeTitle: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, textAlign: 'center' },
-  welcomeName: { fontSize: 24, fontWeight: '900', marginTop: -4 },
+  headerWrapper: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    marginBottom: 8,
+  },
+  headerCard: {
+    borderRadius: 32,
+    padding: 24,
+    minHeight: 140,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    paddingBottom: 40,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  headerTextGroup: {
+    flex: 1,
+  },
+  headerGreeting: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  headerName: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -1,
+    marginTop: -2,
+  },
+  headerIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
   
-  searchContainer: { marginBottom: 30 },
+  floatingSearchWrapper: {
+    marginTop: -28,
+    marginBottom: 24,
+    paddingHorizontal: 16,
+    zIndex: 10,
+  },
+  floatingSearchContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    height: 56,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
+    overflow: 'hidden',
+  },
+  floatingSearchWrapperStyle: {
+    backgroundColor: 'transparent',
+    borderRadius: 24,
+    height: '100%',
+    paddingHorizontal: 16,
+  },
+  floatingSearchInput: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  bodyContent: {
+    paddingHorizontal: 16,
+  },
+
   resultsPanel: {
     marginBottom: 30,
   },
@@ -503,7 +655,7 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
   },
   quoteControlRow: { flexDirection: 'row', alignItems: 'center' },
-  quoteItem: { width: SCREEN_WIDTH - 120, justifyContent: 'center', paddingHorizontal: 10 },
+  quoteItem: { width: IS_LARGE_WEB ? (MAX_WIDTH - 120) : (SCREEN_WIDTH - 120), justifyContent: 'center', paddingHorizontal: 10 },
   quoteText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', fontStyle: 'italic', lineHeight: 22, textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.1)', textShadowRadius: 4 },
   quoteAuthor: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 4 },
 
@@ -511,7 +663,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 22, fontWeight: '800' },
 
   catGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, marginBottom: 32 },
-  catWrap: { width: (SCREEN_WIDTH - 52) / 2 },
+  catWrap: { width: IS_LARGE_WEB ? (MAX_WIDTH - 52) / 2 : (SCREEN_WIDTH - 52) / 2 },
   pathaoCard: {
     height: 110,
     borderRadius: 28,
@@ -567,7 +719,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 24,
     marginRight: 12,
-    width: (SCREEN_WIDTH - 52) / 2.5,
+    width: IS_LARGE_WEB ? (MAX_WIDTH - 52) / 2.5 : (SCREEN_WIDTH - 52) / 2.5,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },

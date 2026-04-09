@@ -137,29 +137,70 @@ const sc = StyleSheet.create({
 
 function VolumeSlider({ volume, onChange, theme }: { volume: number; onChange: (v: number) => void; theme: any }) {
   const sliderWidth = useRef(1);
+  const x = useSharedValue(volume);
+
+  // Sync shared value if parent volume changes (e.g. on mount or timer reset)
+  useEffect(() => {
+    x.value = volume;
+  }, [volume]);
+
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: (e: GestureResponderEvent) => onChange(Math.max(0, Math.min(1, e.nativeEvent.locationX / sliderWidth.current))),
-    onPanResponderMove: (e: GestureResponderEvent) => onChange(Math.max(0, Math.min(1, e.nativeEvent.locationX / sliderWidth.current))),
+    onPanResponderGrant: (e: GestureResponderEvent) => {
+      const val = Math.max(0, Math.min(1, e.nativeEvent.locationX / sliderWidth.current));
+      x.value = val;
+      onChange(val);
+    },
+    onPanResponderMove: (e: GestureResponderEvent) => {
+      const val = Math.max(0, Math.min(1, e.nativeEvent.locationX / sliderWidth.current));
+      x.value = val;
+      onChange(val);
+    },
   })).current;
-  const pct = `${Math.round(volume * 100)}%`;
+
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${Math.round(x.value * 100)}%` as any,
+  }));
+
+  const thumbStyle = useAnimatedStyle(() => ({
+    left: `${Math.round(x.value * 100)}%` as any,
+  }));
+
   return (
     <View style={vs.row}>
       <MaterialCommunityIcons name="volume-low" size={18} color={theme.colors.textTertiary} />
-      <View style={[vs.track, { backgroundColor: theme.colors.surfaceTertiary }]} onLayout={(e: LayoutChangeEvent) => { sliderWidth.current = e.nativeEvent.layout.width; }} {...pan.panHandlers}>
-        <View style={[vs.fill, { width: pct as any, backgroundColor: theme.colors.accent }]} />
-        <View style={[vs.thumb, { left: pct as any, backgroundColor: theme.colors.accent }]} />
+      <View 
+        style={[vs.track, { backgroundColor: theme.colors.surfaceTertiary }]} 
+        onLayout={(e: LayoutChangeEvent) => { sliderWidth.current = e.nativeEvent.layout.width; }} 
+        {...pan.panHandlers}
+      >
+        <Animated.View style={[vs.fill, { backgroundColor: theme.colors.accent }, fillStyle]} />
+        <Animated.View style={[vs.thumb, { backgroundColor: theme.colors.accent }, thumbStyle]} />
       </View>
       <MaterialCommunityIcons name="volume-high" size={18} color={theme.colors.textTertiary} />
     </View>
   );
 }
+
 const vs = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  track: { flex: 1, height: 6, borderRadius: 3, position: 'relative' },
-  fill: { position: 'absolute', top: 0, left: 0, bottom: 0, borderRadius: 3 },
-  thumb: { position: 'absolute', top: -7, width: 20, height: 20, borderRadius: 10, marginLeft: -10, elevation: 3 },
+  track: { flex: 1, height: 8, borderRadius: 4, position: 'relative', overflow: 'hidden' }, // Increased height slightly for better grab
+  fill: { position: 'absolute', top: 0, left: 0, bottom: 0 },
+  thumb: { 
+    position: 'absolute', 
+    top: '50%', 
+    width: 24, 
+    height: 24, 
+    borderRadius: 12, 
+    marginLeft: -12, 
+    marginTop: -12,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -168,10 +209,12 @@ export default function SoundsScreen() {
   const { theme } = useTheme();
   const [playing, setPlaying] = useState<Record<string, boolean>>({});
   const [volume, setVolume] = useState(0.85);
+  const volumeRef = useRef(0.85);
   const [timerMinutes, setTimerMinutes] = useState(15);
   const [timerRemaining, setTimerRemaining] = useState<number | null>(null);
   const soundRefs = useRef<Record<string, Audio.Sound>>({});
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastUpdateRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -180,13 +223,32 @@ export default function SoundsScreen() {
     };
   }, []);
 
+  // Optimized volume update: Only update state (for UI) infrequently or on end, 
+  // but update audio hardware more frequently without blocking.
+  const updateVolume = useCallback((val: number) => {
+    volumeRef.current = val;
+    
+    const now = Date.now();
+    if (now - lastUpdateRef.current > 100) { // Limit hardware calls to 10Hz
+      lastUpdateRef.current = now;
+      setVolume(val); // Update state for UI syncing
+      
+      Object.entries(playing).forEach(([id, isPlaying]) => {
+        if (isPlaying && soundRefs.current[id]) {
+          soundRefs.current[id].setVolumeAsync(val).catch(() => { });
+        }
+      });
+    }
+  }, [playing]);
+
+  // Ensure volume is applied when a new sound starts playing
   useEffect(() => {
     Object.entries(playing).forEach(([id, isPlaying]) => {
       if (isPlaying && soundRefs.current[id]) {
-        soundRefs.current[id].setVolumeAsync(volume).catch(() => { });
+        soundRefs.current[id].setVolumeAsync(volumeRef.current).catch(() => { });
       }
     });
-  }, [volume, playing]);
+  }, [playing]);
 
   const startTimer = useCallback((minutes: number) => {
     selectionFeedback();
@@ -278,7 +340,7 @@ export default function SoundsScreen() {
 
         <View style={[styles.settingsCard, { backgroundColor: theme.colors.surface }]}>
           <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>Playback Control</Text>
-          <VolumeSlider volume={volume} onChange={setVolume} theme={theme} />
+          <VolumeSlider volume={volume} onChange={updateVolume} theme={theme} />
 
           <View style={{ marginTop: 24 }}>
             <Text style={[styles.settingLabel, { color: theme.colors.textSecondary }]}>SLEEP TIMER {timerRemaining !== null && `(${formatTime(timerRemaining)})`}</Text>

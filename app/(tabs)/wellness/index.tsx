@@ -17,7 +17,10 @@ export default function WellnessScreen() {
 
   const sections = SECTIONS_IDS.map((s) => ({
     title: s.title,
-    features: s.ids.map((id) => allFeatures.find((f) => f.id === id)).filter(Boolean) as typeof allFeatures,
+    features: s.ids.map((id) => {
+      const f = allFeatures.find((feat) => feat.id === id);
+      return f ? { ...f, description: undefined } : null;
+    }).filter(Boolean) as typeof allFeatures,
   })).filter((s) => s.features.length > 0);
 
   return (

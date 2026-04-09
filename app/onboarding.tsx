@@ -7,6 +7,7 @@ import {
   Dimensions,
   Pressable,
   Animated,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -16,7 +17,6 @@ import { useTheme } from '../store/theme';
 import { useSettingsStore } from '../store/settings';
 import { lightImpact, selectionFeedback } from '../lib/haptics';
 
-const { width, height } = Dimensions.get('window');
 
 const PAGES = [
   {
@@ -52,6 +52,7 @@ export default function OnboardingScreen() {
   const { theme } = useTheme();
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
+  const { width, height } = useWindowDimensions();
   const setOnboardingComplete = useSettingsStore((s) => s.setOnboardingComplete);
 
   const [currentPage, setCurrentPage] = useState(0);
@@ -101,8 +102,9 @@ export default function OnboardingScreen() {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={handleScroll}
+        onScroll={handleScroll}
         scrollEventThrottle={16}
+        decelerationRate="fast"
         style={StyleSheet.absoluteFill}
       >
         {PAGES.map((p, i) => (

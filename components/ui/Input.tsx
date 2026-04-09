@@ -2,20 +2,23 @@ import React from 'react';
 import { TextInput, TextInputProps, StyleSheet, Platform, View, ViewStyle, TextStyle, Text } from 'react-native';
 import { useTheme } from '../../store/theme';
 
+
 interface PockItInputProps extends TextInputProps {
   containerStyle?: ViewStyle;
   inputStyle?: TextStyle;
+  wrapperStyle?: ViewStyle;
   icon?: React.ReactNode;
   label?: string;
 }
 
-export const PockItInput: React.FC<PockItInputProps> = ({ 
+export const PockItInput = React.forwardRef<TextInput, PockItInputProps>(({ 
   containerStyle, 
   inputStyle, 
+  wrapperStyle,
   icon,
   label,
   ...props 
-}) => {
+}, ref) => {
   const { theme } = useTheme();
 
   return (
@@ -30,11 +33,13 @@ export const PockItInput: React.FC<PockItInputProps> = ({
         { 
           backgroundColor: theme.colors.surfaceSecondary,
           borderRadius: 16,
-        }
+        },
+        wrapperStyle
       ]}>
         {icon && <View style={styles.iconContainer}>{icon}</View>}
         <TextInput
           {...props}
+          ref={ref}
           placeholderTextColor={theme.colors.textTertiary}
           selectionColor={theme.colors.accent}
           underlineColorAndroid="transparent"
@@ -49,7 +54,7 @@ export const PockItInput: React.FC<PockItInputProps> = ({
       </View>
     </View>
   );
-};
+});
 
 export const Input = PockItInput;
 

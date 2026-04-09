@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -45,12 +46,17 @@ function RootLayoutNav() {
     return () => clearTimeout(timer);
   }, []);
 
+
+
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: theme.colors.background },
+          contentStyle: { 
+            backgroundColor: theme.colors.background 
+          },
           animation: 'fade',
         }}
       >

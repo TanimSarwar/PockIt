@@ -154,6 +154,7 @@ function makeColors(isDark: boolean, p: ThemePalette) {
         error:      '#FB7185',  errorBg:    '#4C051930',
         warning:    '#FCD34D',  warningBg:  '#78350F30',
         info:       '#60A5FA',  infoBg:     '#1E3A5F30',
+        overlay:            'rgba(0, 0, 0, 0.75)',
       }
     : {
         text:                '#0F0F20',
@@ -172,6 +173,7 @@ function makeColors(isDark: boolean, p: ThemePalette) {
         error:      '#DC2626',  errorBg:    '#FEE2E2',
         warning:    '#D97706',  warningBg:  '#FEF3C7',
         info:       '#0284C7',  infoBg:     '#E0F2FE',
+        overlay:            'rgba(0, 0, 0, 0.5)',
       };
 
   return {
@@ -222,6 +224,7 @@ export function createTheme(
   const palette = THEME_PALETTES[themeName];
 
   const effectiveDark = palette.alwaysDark ? true : isDark;
+
 
   const colors   = makeColors(effectiveDark, palette);
   const shadows  = makeShadows(effectiveDark);

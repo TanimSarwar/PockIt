@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, ScrollView, StyleSheet, Pressable, TextInput, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../../store/theme';
 import { useTasksStore } from '../../../store/tasks';
@@ -42,6 +42,14 @@ export default function HabitTrackerScreen() {
   const [name, setName] = useState('');
   const today = getDateStr();
   const last30 = getLast30Days();
+  const inputRef = useRef<TextInput>(null);
+
+  const focusInput = () => {
+    if (Platform.OS === 'web') return;
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
+  };
 
   const handleAdd = () => {
     if (!name.trim()) return;
@@ -111,8 +119,15 @@ export default function HabitTrackerScreen() {
         })}
       </ScrollView>
 
-      <Modal visible={showModal} onClose={() => setShowModal(false)} title="New Habit">
-        <Input label="Habit Name" value={name} onChangeText={setName} placeholder="e.g. Meditate, Read, Exercise..." autoFocus />
+      <Modal visible={showModal} onClose={() => setShowModal(false)} onShow={focusInput} title="New Habit">
+        <Input 
+          ref={inputRef}
+          label="Habit Name" 
+          value={name} 
+          onChangeText={setName} 
+          placeholder="e.g. Meditate, Read, Exercise..." 
+          autoFocus={Platform.OS === 'web'} 
+        />
         <Button title="Add Habit" onPress={handleAdd} style={{ marginTop: 16 }} />
       </Modal>
     </View>
