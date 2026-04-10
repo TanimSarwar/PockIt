@@ -1,23 +1,23 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   Pressable,
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  Animated,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../../store/theme';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
+import { PockItInput } from '../../../components/ui/Input';
 import { lightImpact, mediumImpact, selectionFeedback } from '../../../lib/haptics';
 
-const { width: SW, height: SH } = Dimensions.get('window');
+const { width: SW } = Dimensions.get('window');
 
 // ─── Conversion Data ────────────────────────────────────────────────────────
 
@@ -94,17 +94,18 @@ const CATEGORY_ICONS: Record<Category, string> = {
 
 export default function UnitConverterScreen() {
   const { theme } = useTheme();
-  const router = useRouter();
   const [category, setCategory] = useState<Category>('Weight');
   const [fromUnit, setFromUnit] = useState('kg');
   const [toUnit, setToUnit] = useState('lb');
   const [inputValue, setInputValue] = useState('1');
+  const bounceAnim = useRef(new Animated.Value(1)).current;
 
   const units = useMemo(() => CATEGORIES[category], [category]);
   const unitKeys = useMemo(() => Object.keys(units), [units]);
 
   useEffect(() => {
     const keys = Object.keys(CATEGORIES[category]);
+    // Try to find a sensible default if they change categories
     setFromUnit(keys[0]);
     setToUnit(keys.length > 1 ? keys[1] : keys[0]);
   }, [category]);
@@ -121,183 +122,197 @@ export default function UnitConverterScreen() {
     mediumImpact();
     setFromUnit(toUnit);
     setToUnit(fromUnit);
+
+    Animated.sequence([
+      Animated.timing(bounceAnim, { toValue: 1.2, duration: 100, useNativeDriver: true }),
+      Animated.timing(bounceAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+    ]).start();
   }, [fromUnit, toUnit]);
 
   return (
-    <View style={[s.root, { backgroundColor: theme.colors.background }]}>
-      <ScreenHeader 
-        category="TOOLS / CONVERSION" 
-        title="Unit Converter" 
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+      <ScreenHeader
+        category="TOOLS / CONVERSION"
+        title="Unit Converter"
       />
 
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={s.mainBody}>
-          {/* ── Category Select with Indicators ── */}
-          <View style={s.catContainer}>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false} 
-              style={s.catRow}
-              onScroll={(e) => {}} // Could add logic for arrows
-              scrollEventThrottle={16}
-            >
-              {(Object.keys(CATEGORIES) as Category[]).map((cat) => {
-                const active = cat === category;
-                return (
-                  <Pressable
-                    key={cat}
-                    onPress={() => { selectionFeedback(); setCategory(cat); }}
-                    style={[s.catPill, { backgroundColor: theme.colors.surfaceTertiary }, active && { backgroundColor: theme.colors.accent }]}
-                  >
-                    <MaterialCommunityIcons 
-                      name={CATEGORY_ICONS[cat] as any} 
-                      size={14} 
-                      color={active ? '#FFF' : theme.colors.textSecondary} 
-                    />
-                    <Text style={[s.catTxt, { color: theme.colors.textSecondary }, active && { color: '#FFF' }]}>{cat}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            <View style={s.catShadowRight}>
-              <LinearGradient 
-                colors={['transparent', theme.colors.background]} 
-                start={{x:0, y:0}} 
-                end={{x:1, y:0}} 
-                style={s.fade}
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
+          <LinearGradient colors={theme.palette.gradient as any} style={styles.featuredCard}>
+            <Text style={styles.featuredLabel}>SMART CONVERSION</Text>
+            <Text style={styles.featuredTitle}>{category.toUpperCase()}</Text>
+            <View style={styles.featuredBadge}>
+              <MaterialCommunityIcons name={CATEGORY_ICONS[category] as any} size={20} color={theme.colors.accent} />
+              <Text style={[styles.featuredBadgeText, { color: theme.colors.accent }]}>{units[fromUnit]?.label}</Text>
+            </View>
+          </LinearGradient>
+
+          <View style={[styles.mainCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceSecondary }]}>
+
+            {/* Category Selector */}
+            <View style={styles.catPickerWrapper}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catPicker}>
+                {(Object.keys(CATEGORIES) as Category[]).map((cat) => {
+                  const active = cat === category;
+                  return (
+                    <Pressable
+                      key={cat}
+                      onPress={() => { selectionFeedback(); setCategory(cat); }}
+                      style={[
+                        styles.catPill,
+                        { backgroundColor: active ? theme.colors.accent : theme.colors.surfaceSecondary }
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={CATEGORY_ICONS[cat] as any}
+                        size={14}
+                        color={active ? '#fff' : theme.colors.textSecondary}
+                      />
+                      <Text style={[styles.catPillText, { color: active ? '#fff' : theme.colors.textSecondary }]}>
+                        {cat}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {/* From Section */}
+            <View style={styles.section}>
+              <View style={styles.cardHeader}>
+                <Text style={[styles.label, { color: theme.colors.textTertiary }]}>FROM</Text>
+                <View style={[styles.unitBadge, { backgroundColor: theme.colors.accentMuted }]}>
+                  <Text style={[styles.unitBadgeText, { color: theme.colors.accent }]}>{fromUnit.toUpperCase()}</Text>
+                </View>
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.unitPicker}>
+                {unitKeys.map(uk => {
+                  const active = uk === fromUnit;
+                  return (
+                    <Pressable
+                      key={uk}
+                      onPress={() => { lightImpact(); setFromUnit(uk); }}
+                      style={[styles.unitPill, { backgroundColor: active ? theme.colors.accent : theme.colors.surfaceSecondary }]}
+                    >
+                      <Text style={[styles.unitPillText, { color: active ? '#fff' : theme.colors.textSecondary }]}>{uk}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              <PockItInput
+                value={inputValue}
+                onChangeText={setInputValue}
+                keyboardType="decimal-pad"
+                placeholder="Enter value"
+                icon={<MaterialCommunityIcons name="numeric" size={20} color={theme.colors.accent} />}
+                containerStyle={styles.inputContainer}
               />
-              <MaterialCommunityIcons name="chevron-right" size={12} color={theme.colors.accent} style={s.catArrow} />
+            </View>
+
+            {/* Swap Button Bridge */}
+            <View style={styles.buttonBridge}>
+              <View style={[styles.divider, { backgroundColor: theme.colors.surfaceSecondary }]} />
+              <Animated.View style={[styles.swapBtnAnim, { transform: [{ scale: bounceAnim }] }]}>
+                <Pressable onPress={handleSwap} style={({ pressed }) => [styles.swapBtnPressable, { opacity: pressed ? 0.9 : 1 }]}>
+                  <LinearGradient colors={theme.palette.gradient as any} style={styles.swapGradient}>
+                    <MaterialCommunityIcons name="swap-vertical" size={24} color="#fff" />
+                  </LinearGradient>
+                </Pressable>
+              </Animated.View>
+            </View>
+
+            {/* To Section */}
+            <View style={styles.section}>
+              <View style={styles.cardHeader}>
+                <Text style={[styles.label, { color: theme.colors.textTertiary }]}>TO</Text>
+                <View style={[styles.unitBadge, { backgroundColor: theme.colors.accentMuted }]}>
+                  <Text style={[styles.unitBadgeText, { color: theme.colors.accent }]}>{toUnit.toUpperCase()}</Text>
+                </View>
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.unitPicker}>
+                {unitKeys.map(uk => {
+                  const active = uk === toUnit;
+                  return (
+                    <Pressable
+                      key={uk}
+                      onPress={() => { lightImpact(); setToUnit(uk); }}
+                      style={[styles.unitPill, { backgroundColor: active ? theme.colors.accent : theme.colors.surfaceSecondary }]}
+                    >
+                      <Text style={[styles.unitPillText, { color: active ? '#fff' : theme.colors.textSecondary }]}>{uk}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={[styles.resultArea, { backgroundColor: theme.colors.surfaceSecondary }]}>
+                <Text style={[styles.resultText, { color: result ? theme.colors.text : theme.colors.textTertiary }]}>
+                  {result || '0.00'}
+                </Text>
+                <Text style={[styles.resultSub, { color: theme.colors.textTertiary }]}>
+                  {units[toUnit]?.label}
+                </Text>
+              </View>
             </View>
           </View>
 
-          <ScrollView 
-            contentContainerStyle={s.compactScroll} 
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            scrollEnabled={false} // Force one-screen feel if possible
-          >
-            {/* ── Input Card (Smaller) ── */}
-            <View style={[s.glassCard, { backgroundColor: theme.colors.surface }]}>
-              <View style={[s.inputWrap, { backgroundColor: theme.colors.surfaceTertiary }]}>
-                <MaterialCommunityIcons name="numeric" size={18} color={theme.colors.accent} />
-                <TextInput
-                    style={[s.input, { color: theme.colors.text }]}
-                    value={inputValue}
-                    onChangeText={setInputValue}
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
-                    placeholderTextColor={theme.colors.textTertiary}
-                    underlineColorAndroid="transparent"
-                />
-              </View>
-            </View>
+          <View style={styles.formulaCard}>
+            <Text style={[styles.formulaText, { color: theme.colors.textSecondary }]}>
+              {inputValue} {fromUnit} = <Text style={{ color: theme.colors.accent, fontWeight: '800' }}>{result}</Text> {toUnit}
+            </Text>
+          </View>
 
-            {/* ── Conversion Grid (Tightened) ── */}
-            <View style={s.convGrid}>
-              {/* From */}
-              <View style={[s.unitCard, { backgroundColor: theme.colors.surface }]}>
-                <Text style={[s.unitLabel, { color: theme.colors.textTertiary }]}>FROM: {units[fromUnit]?.label?.toUpperCase()}</Text>
-                <View style={s.chipBox}>
-                  {unitKeys.map(uk => {
-                    const active = uk === fromUnit;
-                    return (
-                      <Pressable 
-                          key={uk} 
-                          onPress={() => { lightImpact(); setFromUnit(uk); }}
-                          style={[s.chip, { backgroundColor: theme.colors.surfaceTertiary }, active && { backgroundColor: theme.colors.accentMuted, borderColor: theme.colors.accent, borderWidth: 1 }]}
-                      >
-                        <Text style={[s.chipTxt, { color: theme.colors.textSecondary }, active && { color: theme.colors.accent }]}>{uk}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Swap Button (Smaller) */}
-              <Pressable style={[s.swapBtn, { backgroundColor: theme.colors.accent, width: 44, height: 44 }]} onPress={handleSwap}>
-                  <MaterialCommunityIcons name="swap-vertical" size={20} color="#FFF" />
-              </Pressable>
-
-              {/* To */}
-              <View style={[s.unitCard, { backgroundColor: theme.colors.surface }]}>
-                <Text style={[s.unitLabel, { color: theme.colors.textTertiary }]}>TO: {units[toUnit]?.label?.toUpperCase()}</Text>
-                <View style={s.chipBox}>
-                  {unitKeys.map(uk => {
-                    const active = uk === toUnit;
-                    return (
-                      <Pressable 
-                          key={uk} 
-                          onPress={() => { lightImpact(); setToUnit(uk); }}
-                          style={[s.chip, { backgroundColor: theme.colors.surfaceTertiary }, active && { backgroundColor: theme.colors.accentMuted, borderColor: theme.colors.accent, borderWidth: 1 }]}
-                      >
-                        <Text style={[s.chipTxt, { color: theme.colors.textSecondary }, active && { color: theme.colors.accent }]}>{uk}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            </View>
-
-            {/* ── Result Card (Streamlined) ── */}
-            <View style={[s.resultCard, { backgroundColor: theme.colors.surface }]}>
-              <View style={s.resRow}>
-                <Text style={[s.resVal, { color: theme.colors.text }]} numberOfLines={1}>{result || '---'}</Text>
-                <View style={[s.unitBadge, { backgroundColor: theme.colors.accent }]}>
-                  <Text style={s.badgeTxt}>{toUnit}</Text>
-                </View>
-              </View>
-              <Text style={[s.fullDesc, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                  {inputValue} {fromUnit} = <Text style={{ fontWeight: '800', color: theme.colors.accent }}>{result}</Text> {toUnit}
-              </Text>
-            </View>
-          </ScrollView>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
-const s = StyleSheet.create({
-  root:      { flex: 1 },
-  mainBody:  { flex: 1, paddingHorizontal: 20 },
-  pageHead:  { paddingHorizontal: 20, paddingTop: 10, marginBottom: 8 },
-  titleRow:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backBtn:   { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  pageTitle: { fontSize: 24, fontWeight: '900', letterSpacing: -1 },
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  scroll: { paddingHorizontal: 16, paddingBottom: 40 },
 
-  catContainer: { position: 'relative', marginBottom: 16, height: 44, justifyContent: 'center' },
-  catRow: { overflow: 'visible' },
-  catPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginRight: 8 },
-  catTxt: { fontSize: 12, fontWeight: '700' },
-  
-  catShadowRight: { position: 'absolute', right: -10, top: 0, bottom: 0, width: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
-  fade: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
-  catArrow: { marginRight: 4, zIndex: 5 },
+  featuredCard: { borderRadius: 24, padding: 20, marginBottom: 20, minHeight: 100, justifyContent: 'center', alignItems: 'center' },
+  featuredLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
+  featuredTitle: { color: '#fff', fontSize: 24, fontWeight: '900', letterSpacing: -0.5, marginBottom: 12 },
+  featuredBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  featuredBadgeText: { fontSize: 12, fontWeight: '700' },
 
-  compactScroll: { gap: 10 },
-  glassCard: { borderRadius: 20, padding: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 },
-  input: { flex: 1, marginLeft: 10, fontSize: 18, fontWeight: '800', borderWidth: 0,
-    ...Platform.select({ web: { outlineStyle: 'none' } as any }),
-  },
-
-  convGrid: { gap: 8 },
-  unitCard: { borderRadius: 20, padding: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
-  unitLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5, marginBottom: 8 },
-  chipBox: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, minWidth: 40, alignItems: 'center' },
-  chipTxt: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-
-  swapBtn: { borderRadius: 22, alignSelf: 'center', marginVertical: -12, zIndex: 10, alignItems: 'center', justifyContent: 'center', 
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 5, elevation: 5 },
-
-  resultCard: { borderRadius: 24, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 15, elevation: 5 },
-  resRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  resVal: { fontSize: 28, fontWeight: '900', flex: 1, marginRight: 8 },
+  mainCard: { borderRadius: 32, paddingHorizontal: 22, paddingTop: 14, paddingBottom: 22, borderWidth: 1.5 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  label: { fontSize: 11, fontWeight: '800', letterSpacing: 1.5 },
   unitBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  badgeTxt: { color: '#FFF', fontSize: 10, fontWeight: '900', textTransform: 'uppercase' },
-  fullDesc: { fontSize: 12, fontWeight: '500', textAlign: 'center' },
+  unitBadgeText: { fontSize: 11, fontWeight: '900' },
+
+  catPickerWrapper: { marginBottom: 20, marginHorizontal: -4 },
+  catPicker: { flex: 1 },
+  catPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, marginRight: 8 },
+  catPillText: { fontSize: 13, fontWeight: '700' },
+
+  section: { paddingVertical: 8 },
+  unitPicker: { marginBottom: 16 },
+  unitPill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginRight: 8, minWidth: 44, alignItems: 'center' },
+  unitPillText: { fontSize: 12, fontWeight: '700' },
+
+  inputContainer: { marginBottom: 8 },
+
+  buttonBridge: { height: 74, alignItems: 'center', justifyContent: 'center', zIndex: 10, marginVertical: -14 },
+  divider: { height: 1, position: 'absolute', top: '50%', left: -22, right: -22, opacity: 0.1 },
+  swapBtnAnim: { width: 48, height: 48, zIndex: 11 },
+  swapBtnPressable: { flex: 1, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, borderRadius: 24 },
+  swapGradient: { flex: 1, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+
+  resultArea: { padding: 16, borderRadius: 20, minHeight: 80, justifyContent: 'center', alignItems: 'center' },
+  resultText: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
+  resultSub: { fontSize: 12, fontWeight: '600', marginTop: 4 },
+
+  formulaCard: { marginTop: 20, alignItems: 'center', padding: 16 },
+  formulaText: { fontSize: 14, fontWeight: '600' },
 });
+

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,12 @@ import {
   Pressable,
   Dimensions,
   Platform,
+  Animated,
+  Easing,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../../store/theme';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { lightImpact, mediumImpact, notificationSuccess, selectionFeedback } from '../../../lib/haptics';
@@ -44,7 +46,6 @@ function getStrength(pw: string): { label: string; color: string; percent: numbe
 
 export default function PasswordGeneratorScreen() {
   const { theme } = useTheme();
-  const router = useRouter();
   const [length, setLength] = useState(16);
   const [useLower, setUseLower] = useState(true);
   const [useUpper, setUseUpper] = useState(true);
@@ -52,6 +53,9 @@ export default function PasswordGeneratorScreen() {
   const [useSymbols, setUseSymbols] = useState(true);
   const [password, setPassword] = useState('');
   const [history, setHistory] = useState<string[]>([]);
+  
+  const bounceAnim = useRef(new Animated.Value(1)).current;
+  const strengthAnim = useRef(new Animated.Value(0)).current;
 
   const generate = useCallback(() => {
     mediumImpact();
@@ -68,13 +72,28 @@ export default function PasswordGeneratorScreen() {
         pw += pool[randIndex];
     }
     setPassword(pw);
-    setHistory((prev) => [pw, ...prev.slice(0, 5)]);
+    setHistory((prev) => [pw, ...prev.slice(0, 4)]);
+
+    Animated.sequence([
+      Animated.timing(bounceAnim, { toValue: 1.15, duration: 100, useNativeDriver: true }),
+      Animated.timing(bounceAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+    ]).start();
   }, [length, useLower, useUpper, useNumbers, useSymbols]);
 
-  // Generate initial password
   useEffect(() => {
     generate();
   }, []);
+
+  const strength = password ? getStrength(password) : { label: 'None', color: '#ccc', percent: 0 };
+
+  useEffect(() => {
+    Animated.timing(strengthAnim, {
+      toValue: strength.percent,
+      duration: 500,
+      easing: Easing.out(Easing.back(1.5)),
+      useNativeDriver: false,
+    }).start();
+  }, [strength.percent]);
 
   const copy = async (textToCopy: string = password) => {
     if (!textToCopy) return;
@@ -82,156 +101,182 @@ export default function PasswordGeneratorScreen() {
     notificationSuccess();
   };
 
-  const strength = password ? getStrength(password) : null;
-
   return (
-    <View style={[s.root, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       <ScreenHeader
         category="TOOLS / SECURITY"
         title="Password Tool"
       />
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         
-        {/* ── Result Card ── */}
-        <View style={[s.resultCard, { backgroundColor: theme.colors.surface }]}>
-          <View style={[s.pwContainer, { backgroundColor: theme.colors.surfaceTertiary }]}>
-            <Text style={[s.passwordText, { color: theme.colors.text }]} numberOfLines={2}>
-              {password || '••••••••'}
-            </Text>
+        <LinearGradient colors={theme.palette.gradient as any} style={styles.featuredCard}>
+          <Text style={styles.featuredLabel}>SECURE GENERATOR</Text>
+          <Text style={styles.featuredTitle}>{strength.label.toUpperCase()}</Text>
+          <Pressable onPress={() => copy()} style={styles.featuredCopy}>
+            <MaterialCommunityIcons name="content-copy" size={16} color={theme.colors.accent} />
+            <Text style={[styles.featuredCopyText, { color: theme.colors.accent }]}>COPY</Text>
+          </Pressable>
+        </LinearGradient>
+
+        <View style={[styles.mainCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceSecondary }]}>
+          
+          {/* Result Section */}
+          <View style={styles.section}>
+             <View style={styles.cardHeader}>
+                <Text style={[styles.label, { color: theme.colors.textTertiary }]}>GENERATED PASSWORD</Text>
+                <View style={[styles.strengthBadge, { backgroundColor: strength.color + '20' }]}>
+                   <Text style={[styles.strengthBadgeText, { color: strength.color }]}>{strength.percent}%</Text>
+                </View>
+             </View>
+             
+             <View style={[styles.pwBox, { backgroundColor: theme.colors.surfaceSecondary }]}>
+                <Text style={[styles.pwText, { color: theme.colors.text }]} numberOfLines={2}>
+                  {password || '••••••••'}
+                </Text>
+                <View style={styles.strengthBarBg}>
+                   <Animated.View 
+                    style={[
+                      styles.strengthBarFill, 
+                      { 
+                        backgroundColor: strength.color,
+                        width: strengthAnim.interpolate({
+                          inputRange: [0, 100],
+                          outputRange: ['0%', '100%']
+                        })
+                      }
+                    ]} 
+                   />
+                </View>
+             </View>
           </View>
 
-          {strength && (
-            <View style={s.strengthBox}>
-              <View style={s.strengthHeader}>
-                <Text style={[s.strengthLabel, { color: theme.colors.textTertiary }]}>STRENGTH: <Text style={{ color: strength.color }}>{strength.label.toUpperCase()}</Text></Text>
-                <Text style={[s.strengthVal, { color: strength.color }]}>{strength.percent}%</Text>
-              </View>
-              <View style={[s.barBg, { backgroundColor: theme.colors.border }]}>
-                <View style={[s.barFill, { width: `${strength.percent}%`, backgroundColor: strength.color }]} />
-              </View>
-            </View>
-          )}
-
-          <View style={s.actionGrid}>
-            <Pressable 
-              style={[s.mainBtn, { backgroundColor: theme.colors.accent }]}
-              onPress={generate}
-            >
-              <MaterialCommunityIcons name="cached" size={20} color="#FFF" />
-              <Text style={s.mainBtnTxt}>Regenerate</Text>
-            </Pressable>
-            <Pressable 
-              style={[s.iconBtn, { backgroundColor: theme.colors.surfaceTertiary }]}
-              onPress={() => copy()}
-            >
-              <MaterialCommunityIcons name="content-copy" size={20} color={theme.colors.accent} />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* ── Settings Card ── */}
-        <View style={[s.settingsCard, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[s.sectionHeader, { color: theme.colors.text }]}>Length: {length}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.lengthScroll}>
-            {LENGTHS.map((l) => {
-              const active = length === l;
-              return (
-                <Pressable 
-                  key={l}
-                  onPress={() => { selectionFeedback(); setLength(l); }}
-                  style={[s.lengthPill, { backgroundColor: theme.colors.surfaceTertiary }, active && { backgroundColor: theme.colors.accent }]}
-                >
-                  <Text style={[s.lengthTxt, { color: theme.colors.textSecondary }, active && { color: '#FFF' }]}>{l}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-
-          <View style={s.divider} />
-
-          <Text style={[s.sectionHeader, { color: theme.colors.text, marginBottom: 12 }]}>Complexity</Text>
-          {[
-            { label: 'Lowercase (a-z)', value: useLower, set: setUseLower, icon: 'format-letter-lowercase' },
-            { label: 'Uppercase (A-Z)', value: useUpper, set: setUseUpper, icon: 'format-letter-uppercase' },
-            { label: 'Numbers (0-9)', value: useNumbers, set: setUseNumbers, icon: 'numeric' },
-            { label: 'Symbols (!@#$)', value: useSymbols, set: setUseSymbols, icon: 'at' },
-          ].map((opt) => (
-            <View key={opt.label} style={s.optionRow}>
-              <View style={s.optionLeading}>
-                <MaterialCommunityIcons name={opt.icon as any} size={18} color={theme.colors.textTertiary} />
-                <Text style={[s.optionLabel, { color: theme.colors.textSecondary }]}>{opt.label}</Text>
-              </View>
-              <Switch 
-                value={opt.value} 
-                onValueChange={opt.set} 
-                trackColor={{ true: theme.colors.accent, false: theme.colors.border }} 
-                thumbColor={Platform.OS === 'ios' ? undefined : (opt.value ? '#FFF' : '#F4F4F4')}
-              />
-            </View>
-          ))}
-        </View>
-
-        {/* ── History ── */}
-        {history.length > 0 && (
-          <View style={s.historySection}>
-            <Text style={[s.historyTitle, { color: theme.colors.text }]}>Recently Generated</Text>
-            {history.map((pw, i) => (
-              <Pressable 
-                key={i} 
-                style={[s.histItem, { backgroundColor: theme.colors.surface }]}
-                onPress={() => copy(pw)}
-              >
-                <Text style={[s.histPw, { color: theme.colors.textSecondary }]} numberOfLines={1}>{pw}</Text>
-                <MaterialCommunityIcons name="content-copy" size={14} color={theme.colors.accent} />
+          {/* Regenerate Bridge */}
+          <View style={styles.buttonBridge}>
+            <View style={[styles.divider, { backgroundColor: theme.colors.surfaceSecondary }]} />
+            <Animated.View style={[styles.genBtnAnim, { transform: [{ scale: bounceAnim }] }]}>
+              <Pressable onPress={generate} style={({ pressed }) => [styles.genBtnPressable, { opacity: pressed ? 0.9 : 1 }]}>
+                <LinearGradient colors={theme.palette.gradient as any} style={styles.genGradient}>
+                  <MaterialCommunityIcons name="cached" size={24} color="#fff" />
+                </LinearGradient>
               </Pressable>
-            ))}
+            </Animated.View>
+          </View>
+
+          {/* Settings Section */}
+          <View style={styles.section}>
+            <View style={styles.cardHeader}>
+              <Text style={[styles.label, { color: theme.colors.textTertiary }]}>LENGTH: {length}</Text>
+            </View>
+            
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.lengthPicker}>
+              {LENGTHS.map((l) => {
+                const active = length === l;
+                return (
+                  <Pressable 
+                    key={l}
+                    onPress={() => { selectionFeedback(); setLength(l); }}
+                    style={[styles.lengthPill, { backgroundColor: active ? theme.colors.accent : theme.colors.surfaceSecondary }]}
+                  >
+                    <Text style={[styles.lengthPillText, { color: active ? '#fff' : theme.colors.textSecondary }]}>{l}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.optionsWrap}>
+               {[
+                 { label: 'Lowercase', value: useLower, set: setUseLower, icon: 'format-letter-lowercase' },
+                 { label: 'Uppercase', value: useUpper, set: setUseUpper, icon: 'format-letter-uppercase' },
+                 { label: 'Numbers', value: useNumbers, set: setUseNumbers, icon: 'numeric' },
+                 { label: 'Symbols', value: useSymbols, set: setUseSymbols, icon: 'at' },
+               ].map((opt) => (
+                 <View key={opt.label} style={styles.optionRow}>
+                    <View style={styles.optionInfo}>
+                       <MaterialCommunityIcons name={opt.icon as any} size={16} color={theme.colors.textTertiary} />
+                       <Text style={[styles.optionText, { color: theme.colors.textSecondary }]}>{opt.label}</Text>
+                    </View>
+                    <Switch 
+                      value={opt.value} 
+                      onValueChange={(val) => { lightImpact(); opt.set(val); }} 
+                      trackColor={{ true: theme.colors.accent, false: theme.colors.border }} 
+                      thumbColor={Platform.OS === 'ios' ? undefined : '#FFF'}
+                    />
+                 </View>
+               ))}
+            </View>
+          </View>
+        </View>
+
+        {/* History */}
+        {history.length > 0 && (
+          <View style={styles.historyContainer}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>RECENTLY GENERATED</Text>
+            <View style={styles.historyList}>
+              {history.map((pw, i) => (
+                <Pressable 
+                  key={i} 
+                  style={[styles.historyItem, { backgroundColor: theme.colors.surface }]}
+                  onPress={() => copy(pw)}
+                >
+                  <Text style={[styles.historyPw, { color: theme.colors.textSecondary }]} numberOfLines={1}>{pw}</Text>
+                  <MaterialCommunityIcons name="content-copy" size={14} color={theme.colors.accent} />
+                </Pressable>
+              ))}
+            </View>
           </View>
         )}
 
-        <View style={{ height: 60 }} />
       </ScrollView>
     </View>
   );
 }
 
-const s = StyleSheet.create({
-  root:       { flex: 1 },
-  scroll:     { paddingHorizontal: 20, paddingBottom: 100 },
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  scroll: { paddingHorizontal: 16, paddingBottom: 40 },
+  
+  featuredCard: { borderRadius: 24, padding: 20, marginBottom: 20, minHeight: 100, justifyContent: 'center', alignItems: 'center' },
+  featuredLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
+  featuredTitle: { color: '#fff', fontSize: 24, fontWeight: '900', letterSpacing: -0.5, marginBottom: 12 },
+  featuredCopy: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  featuredCopyText: { fontSize: 12, fontWeight: '700' },
 
+  mainCard: { borderRadius: 32, paddingHorizontal: 22, paddingTop: 14, paddingBottom: 22, borderWidth: 1.5 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  label: { fontSize: 11, fontWeight: '800', letterSpacing: 1.5 },
+  strengthBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  strengthBadgeText: { fontSize: 11, fontWeight: '900' },
 
-  resultCard: { borderRadius: 30, padding: 24, marginBottom: 20,
-    ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 20 }, android: { elevation: 6 } })
+  section: { paddingVertical: 8 },
+  pwBox: { padding: 20, borderRadius: 20, alignItems: 'center', minHeight: 100 },
+  pwText: { fontSize: 24, fontWeight: '700', textAlign: 'center', marginBottom: 16, letterSpacing: 1, 
+    ...Platform.select({ ios: { fontFamily: 'Courier' }, android: { fontFamily: 'monospace' } })
   },
-  pwContainer: { borderRadius: 20, padding: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  passwordText: { fontSize: 22, fontWeight: '700', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', textAlign: 'center', letterSpacing: 0.5 },
+  strengthBarBg: { height: 4, width: '100%', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 2, overflow: 'hidden' },
+  strengthBarFill: { height: '100%', borderRadius: 2 },
 
-  strengthBox: { marginBottom: 24 },
-  strengthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 },
-  strengthLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  strengthVal: { fontSize: 13, fontWeight: '800' },
-  barBg: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 3 },
+  buttonBridge: { height: 74, alignItems: 'center', justifyContent: 'center', zIndex: 10, marginVertical: -14 },
+  divider: { height: 1, position: 'absolute', top: '50%', left: -22, right: -22, opacity: 0.1 },
+  genBtnAnim: { width: 48, height: 48, zIndex: 11 },
+  genBtnPressable: { flex: 1, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, borderRadius: 24 },
+  genGradient: { flex: 1, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
 
-  actionGrid: { flexDirection: 'row', gap: 12 },
-  mainBtn: { flex: 1, height: 56, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 5 },
-  mainBtnTxt: { color: '#FFF', fontSize: 15, fontWeight: '800' },
-  iconBtn: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  lengthPicker: { marginBottom: 20, marginHorizontal: -4 },
+  lengthPill: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  lengthPillText: { fontSize: 14, fontWeight: '700' },
 
-  settingsCard: { borderRadius: 24, padding: 20, marginBottom: 24 },
-  sectionHeader: { fontSize: 16, fontWeight: '800', marginBottom: 16 },
-  lengthScroll: { marginHorizontal: -4, marginBottom: 4 },
-  lengthPill: { width: 54, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginHorizontal: 4 },
-  lengthTxt: { fontSize: 14, fontWeight: '700' },
-  divider: { height: 1, width: '100%', backgroundColor: 'rgba(0,0,0,0.05)', marginVertical: 20 },
-  optionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-  optionLeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  optionLabel: { fontSize: 14, fontWeight: '600' },
+  optionsWrap: { gap: 4 },
+  optionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  optionInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  optionText: { fontSize: 14, fontWeight: '600' },
 
-  historySection: { },
-  historyTitle: { fontSize: 14, fontWeight: '800', marginBottom: 12, opacity: 0.7 },
-  histItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 16, marginBottom: 8,
-    borderWidth: 1, borderColor: 'rgba(0,0,0,0.02)' },
-  histPw: { fontSize: 13, fontWeight: '500', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', flex: 1, marginRight: 10 },
+  historyContainer: { marginTop: 24 },
+  sectionTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 12, marginLeft: 4 },
+  historyList: { gap: 8 },
+  historyItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 16 },
+  historyPw: { fontSize: 13, fontWeight: '600', flex: 1, marginRight: 12, opacity: 0.7,
+    ...Platform.select({ ios: { fontFamily: 'Courier' }, android: { fontFamily: 'monospace' } })
+  },
 });
+
