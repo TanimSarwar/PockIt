@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, Platform } from 'react-native';
-import { Magnetometer } from 'expo-sensors';
+import { View, Text, StyleSheet, Dimensions, Platform, Alert } from 'react-native';
+import * as Location from 'expo-location';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
   withSpring,
-  interpolate,
-  useDerivedValue
 } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../../store/theme';
@@ -18,25 +16,57 @@ const COMPASS_SIZE = SW * 0.7;
 
 export default function CompassScreen() {
   const { theme } = useTheme();
-  const [data, setData] = useState({ x: 0, y: 0, z: 0 });
-  const [subscription, setSubscription] = useState<any>(null);
+  const [heading, setHeading] = useState(0);
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
   const rotation = useSharedValue(0);
 
   useEffect(() => {
-    Magnetometer.isAvailableAsync().then(avail => {
-      setIsAvailable(avail);
-      if (avail) {
-        _subscribe();
-      } else if (Platform.OS === 'web') {
-        // Fallback for browsers
+    let subscription: Location.LocationSubscription | null = null;
+
+    const startWatching = async () => {
+      if (Platform.OS === 'web') {
+        setIsAvailable(true);
         window.addEventListener('deviceorientation', _handleWebOrientation, true);
+        return;
       }
-    });
+
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setErrorMsg('Permission to access location was denied. Compass requires location for accuracy.');
+          setIsAvailable(false);
+          return;
+        }
+
+        // Check if compass is available
+        const hasServices = await Location.hasServicesEnabledAsync();
+        if (!hasServices) {
+           setErrorMsg('Location services are disabled.');
+           setIsAvailable(false);
+           return;
+        }
+
+        setIsAvailable(true);
+        subscription = await Location.watchHeadingAsync((data) => {
+          const newHeading = data.trueHeading !== -1 ? data.trueHeading : data.magHeading;
+          setHeading(Math.round(newHeading));
+          rotation.value = withSpring(-newHeading, { damping: 20, stiffness: 90 });
+        });
+      } catch (err) {
+        console.error(err);
+        setErrorMsg('Error accessing compass sensors.');
+        setIsAvailable(false);
+      }
+    };
+
+    startWatching();
 
     return () => {
-      _unsubscribe();
+      if (subscription) {
+        subscription.remove();
+      }
       if (Platform.OS === 'web') {
         window.removeEventListener('deviceorientation', _handleWebOrientation);
       }
@@ -45,43 +75,12 @@ export default function CompassScreen() {
 
   const _handleWebOrientation = (event: any) => {
     // web 'webkitCompassHeading' is often available on iOS safari
-    const heading = event.webkitCompassHeading || (360 - event.alpha);
-    if (heading) {
-      rotation.value = withSpring(-heading, { damping: 20, stiffness: 90 });
+    const h = event.webkitCompassHeading || (360 - event.alpha);
+    if (h !== undefined && h !== null) {
+      setHeading(Math.round(h));
+      rotation.value = withSpring(-h, { damping: 20, stiffness: 90 });
     }
   };
-
-  const _subscribe = () => {
-    if (subscription) return;
-    setSubscription(
-      Magnetometer.addListener(result => {
-        setData(result);
-      })
-    );
-    Magnetometer.setUpdateInterval(100);
-  };
-
-  const _unsubscribe = () => {
-    if (subscription) {
-      if (subscription.remove) subscription.remove();
-      setSubscription(null);
-    }
-  };
-
-  // Calculate heading
-  // Use useDerivedValue to keep rotation smooth without state re-renders for the animation itself
-  useEffect(() => {
-    let { x, y } = data;
-    let angle = 0;
-    if (Math.atan2(y, x) >= 0) {
-      angle = Math.atan2(y, x) * (180 / Math.PI);
-    } else {
-      angle = (Math.atan2(y, x) + 2 * Math.PI) * (180 / Math.PI);
-    }
-    // Adjust for sensor orientation (Experimental, usually -90 offset)
-    const heading = Math.round(angle);
-    rotation.value = withSpring(-heading, { damping: 20, stiffness: 90 });
-  }, [data]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.value}deg` }],
@@ -100,8 +99,7 @@ export default function CompassScreen() {
     return 'N';
   };
 
-  const currentDegree = Math.round(((-rotation.value % 360) + 360) % 360);
-  const direction = getDirection(currentDegree);
+  const direction = getDirection(heading);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
@@ -113,7 +111,7 @@ export default function CompassScreen() {
       <View style={styles.container}>
         <View style={styles.infoBox}>
           <Text style={[styles.degreeText, { color: theme.colors.text }]}>
-            {currentDegree}°
+            {heading}°
           </Text>
           <Text style={[styles.directionText, { color: theme.colors.accent }]}>
             {direction}
@@ -135,13 +133,13 @@ export default function CompassScreen() {
             
             {/* Needle */}
             <View style={styles.needleWrapper}>
-              <View style={[styles.needleNorth, { borderBottomColor: theme.colors.accent }]} />
-              <View style={[styles.needleSouth, { borderTopColor: theme.colors.textTertiary }]} />
+               <View style={[styles.needleNorth, { borderBottomColor: theme.colors.accent }]} />
+               <View style={[styles.needleSouth, { borderTopColor: theme.colors.textTertiary }]} />
             </View>
           </Animated.View>
           
           {/* Static Center Point */}
-          <View style={[styles.centerDot, { backgroundColor: theme.colors.background }]} />
+          <View style={[styles.centerDot, { backgroundColor: theme.colors.background, borderColor: theme.colors.accent }]} />
           <View style={[styles.indicator, { backgroundColor: theme.colors.accent }]} />
         </View>
 
@@ -152,9 +150,9 @@ export default function CompassScreen() {
             color={isAvailable === false ? "#FF5252" : theme.colors.accent} 
           />
           <Text style={[styles.tipsText, { color: theme.colors.textSecondary }]}>
-            {isAvailable === false 
-              ? "Your device/browser does not support the Magnetometer sensor required for the compass." 
-              : "Hold your device flat and stay away from magnetic objects for best accuracy."}
+            {errorMsg ? errorMsg : (isAvailable === false 
+              ? "Your device/browser does not support the sensors required for the compass." 
+              : "Hold your device flat and stay away from magnetic objects for best accuracy.")}
           </Text>
         </Card>
       </View>

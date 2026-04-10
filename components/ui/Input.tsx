@@ -1,5 +1,6 @@
 import React from 'react';
-import { TextInput, TextInputProps, StyleSheet, Platform, View, ViewStyle, TextStyle, Text } from 'react-native';
+import { TextInput, TextInputProps, StyleSheet, Platform, View, ViewStyle, TextStyle, Text, Pressable } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../store/theme';
 
 
@@ -9,6 +10,8 @@ interface PockItInputProps extends TextInputProps {
   wrapperStyle?: ViewStyle;
   icon?: React.ReactNode;
   label?: string;
+  showClear?: boolean;
+  onClear?: () => void;
 }
 
 export const PockItInput = React.forwardRef<TextInput, PockItInputProps>(({ 
@@ -17,6 +20,8 @@ export const PockItInput = React.forwardRef<TextInput, PockItInputProps>(({
   wrapperStyle,
   icon,
   label,
+  showClear,
+  onClear,
   ...props 
 }, ref) => {
   const { theme } = useTheme();
@@ -51,6 +56,15 @@ export const PockItInput = React.forwardRef<TextInput, PockItInputProps>(({
             inputStyle
           ]}
         />
+        {showClear && props.value && props.value.length > 0 && (
+          <Pressable 
+            onPress={onClear} 
+            hitSlop={10}
+            style={styles.clearBtn}
+          >
+            <MaterialCommunityIcons name="close-circle" size={18} color={theme.colors.textTertiary} />
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -75,6 +89,10 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginRight: 8,
+  },
+  clearBtn: {
+    padding: 4,
+    marginLeft: 4,
   },
   input: {
     flex: 1,

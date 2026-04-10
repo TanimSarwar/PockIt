@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Platform, Dimensions } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Platform, Dimensions, Animated, Easing } from 'react-native';
 import * as Location from 'expo-location';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Svg, Path } from 'react-native-svg';
 import { useTheme } from '../../../store/theme';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Card } from '../../../components/ui/Card';
@@ -40,15 +41,15 @@ function Countdown({ nextTime, nextName }: { nextTime: string; nextName: string 
       const [h, m] = nextTime.split(':').map(Number);
       let target = new Date();
       target.setHours(h, m, 0, 0);
-      
+
       if (target < now) {
-         target.setDate(target.getDate() + 1);
+        target.setDate(target.getDate() + 1);
       }
-      
+
       const diff = target.getTime() - now.getTime();
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      
+
       setTimeLeft(`${hours}h ${mins}m left for ${nextName}`);
     };
     update();
@@ -57,6 +58,58 @@ function Countdown({ nextTime, nextName }: { nextTime: string; nextName: string 
   }, [nextTime, nextName]);
 
   return <Text style={styles.countdownText}>{timeLeft}</Text>;
+}
+
+// ─── Sun Progress Component ───────────────────────────────────────────────────
+
+function SunProgress({ sunrise, sunset }: { sunrise: string; sunset: string }) {
+  const progress = useMemo(() => {
+    if (!sunrise || !sunset) return null;
+    
+    const timeToMin = (s: string) => {
+      const [h, m] = s.split(':').map(Number);
+      return h * 60 + m;
+    };
+    
+    const now = new Date();
+    const current = now.getHours() * 60 + now.getMinutes();
+    const start = timeToMin(sunrise);
+    const end = timeToMin(sunset);
+    
+    if (current < start || current > end) return null;
+    
+    return (current - start) / (end - start);
+  }, [sunrise, sunset]);
+
+  if (progress === null) return null;
+
+  return (
+    <View style={styles.sunPathContainer}>
+      <Svg height="30" width="100%" viewBox="0 0 100 30" style={styles.svgContainer}>
+        <Path
+          d="M 0,15 L 100,15"
+          vectorEffect="non-scaling-stroke"
+          fill="none"
+          stroke="rgba(255,255,255,0.2)"
+          strokeWidth="1.5"
+          strokeDasharray="4,4"
+        />
+      </Svg>
+      
+      <View 
+        style={[
+          styles.sunIconContainer, 
+          { 
+            left: `${progress * 100}%`,
+          }
+        ]}
+      >
+        {/* Shine Effect */}
+        <View style={styles.sunShine} />
+        <MaterialCommunityIcons name="white-balance-sunny" size={20} color="#FFD700" />
+      </View>
+    </View>
+  );
 }
 
 // ─── Main Screen ────────────────────────────────────────────────────────────
@@ -73,7 +126,7 @@ export default function PrayerTimesScreen() {
       setLoading(true);
       let latitude = coords.lat;
       let longitude = coords.lon;
-      
+
       if (useGPS) {
         if (Platform.OS === 'web') {
           const pos: any = await new Promise((resolve, reject) => {
@@ -84,9 +137,9 @@ export default function PrayerTimesScreen() {
         } else {
           const { status } = await Location.requestForegroundPermissionsAsync();
           if (status !== 'granted') {
-             Alert.alert('Permission denied', 'Location permission is required to sync.');
-             setLoading(false);
-             return;
+            Alert.alert('Permission denied', 'Location permission is required to sync.');
+            setLoading(false);
+            return;
           }
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
           latitude = loc.coords.latitude;
@@ -152,23 +205,23 @@ export default function PrayerTimesScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       <ScreenHeader category="UTILITIES / DAILY" title="Prayer Times" />
-      
+
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={theme.palette.gradient as any} style={styles.featuredCard}>
           <View style={styles.cardHeader}>
             <View>
-               <Text style={styles.locationText}>{city}</Text>
-               <Text style={styles.dateSmall}>{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase()}</Text>
+              <Text style={styles.locationText}>{city}</Text>
+              <Text style={styles.dateSmall}>{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase()}</Text>
             </View>
             <Pressable onPress={() => fetchTimes(true)} style={styles.cardSync}>
-               <MaterialCommunityIcons name="crosshairs-gps" size={14} color="#fff" />
+              <MaterialCommunityIcons name="crosshairs-gps" size={14} color="#fff" />
             </Pressable>
           </View>
 
           <View style={styles.timerBox}>
-             {times && getNextPrayer && (
-                <Countdown nextTime={getNextPrayer.time} nextName={getNextPrayer.name} />
-             )}
+            {times && getNextPrayer && (
+              <Countdown nextTime={getNextPrayer.time} nextName={getNextPrayer.name} />
+            )}
           </View>
 
           <View style={styles.cornerRow}>
@@ -176,6 +229,11 @@ export default function PrayerTimesScreen() {
               <Text style={styles.cornerLabel}>SUNRISE</Text>
               <Text style={styles.cornerValue}>{times?.Sunrise || '--:--'}</Text>
             </View>
+
+            <View style={{ flex: 1, marginHorizontal: 6, paddingBottom: 4 }}>
+              {times && <SunProgress sunrise={times.Sunrise} sunset={times.Sunset} />}
+            </View>
+
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.cornerLabel}>SUNSET</Text>
               <Text style={styles.cornerValue}>{times?.Sunset || '--:--'}</Text>
@@ -198,10 +256,10 @@ export default function PrayerTimesScreen() {
         </View>
 
         <View style={styles.methodCard}>
-           <Text style={[styles.methodTitle, { color: theme.colors.textSecondary }]}>METHODOLOGY</Text>
-           <Text style={[styles.methodText, { color: theme.colors.textTertiary }]}>
-             ISNA Calculation • GPS Precision
-           </Text>
+          <Text style={[styles.methodTitle, { color: theme.colors.textSecondary }]}>METHODOLOGY</Text>
+          <Text style={[styles.methodText, { color: theme.colors.textTertiary }]}>
+            ISNA Calculation • GPS Precision
+          </Text>
         </View>
       </ScrollView>
     </View>
@@ -212,7 +270,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   scroll: { paddingHorizontal: 16, paddingBottom: 40 },
   featuredCard: {
-    height: 125,
+    height: 140,
     borderRadius: 24,
     padding: 16,
     justifyContent: 'space-between',
@@ -230,10 +288,10 @@ const styles = StyleSheet.create({
   cornerLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
   cornerValue: { color: '#fff', fontSize: 15, fontWeight: '800' },
   grid: { gap: 10 },
-  gridItem: { 
-    width: '100%', 
-    borderRadius: 16, 
-    padding: 14, 
+  gridItem: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1.5,
     elevation: 1,
     overflow: 'hidden',
@@ -248,4 +306,34 @@ const styles = StyleSheet.create({
   methodCard: { marginTop: 24, paddingHorizontal: 4 },
   methodTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 4 },
   methodText: { fontSize: 11 },
+  sunPathContainer: {
+    height: 30,
+    justifyContent: 'center',
+    position: 'relative',
+    width: '100%',
+  },
+  svgContainer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  sunIconContainer: {
+    position: 'absolute',
+    top: 5,
+    marginLeft: -10, // Half of icon size (20)
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sunShine: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 215, 0, 0.3)',
+    transform: [{ scale: 1.5 }],
+    filter: 'blur(6px)',
+    opacity: 0.5,
+  },
 });

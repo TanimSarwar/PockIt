@@ -30,7 +30,7 @@ import { useTheme } from '../../store/theme';
 import { useFavoritesStore } from '../../store/favorites';
 import { useAuthStore } from '../../store/auth';
 import { features } from '../../constants/features';
-import { fetchWeather } from '../../lib/api';
+import { fetchWeather, fetchQuotesList } from '../../lib/api';
 import { lightImpact, mediumImpact } from '../../lib/haptics';
 import { PockItInput } from '../../components/ui/Input';
 
@@ -196,6 +196,15 @@ export default function HomeScreen() {
       
       const w = await fetchWeather(lat, lon);
       setWeather(w);
+
+      try {
+        const quotes = await fetchQuotesList();
+        if (quotes && quotes.length > 0) {
+          setCuratedQuotes(quotes.map(q => ({ q: q.content, a: q.author })));
+        }
+      } catch (e) {
+        console.warn('Failed to fetch quotes:', e);
+      }
     } catch (e: any) {
       setLocationName('New York, NY');
     } finally {
@@ -213,10 +222,32 @@ export default function HomeScreen() {
     { q: "Quality is not an act, it is a habit.", a: "Aristotle" }
   ]);
 
-  const shuffleQuotes = () => {
+  const [isRefreshingQuotes, setIsRefreshingQuotes] = useState(false);
+  const refreshRotation = useSharedValue(0);
+  
+  const refreshAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${refreshRotation.value * 360}deg` }]
+  }));
+
+  const shuffleQuotes = async () => {
+    if (isRefreshingQuotes) return;
     mediumImpact();
-    setCuratedQuotes([...curatedQuotes].sort(() => Math.random() - 0.5));
-    setQuoteIndex(0);
+    setIsRefreshingQuotes(true);
+    refreshRotation.value = withRepeat(withTiming(1, { duration: 1000 }), -1);
+    
+    try {
+      const quotes = await fetchQuotesList();
+      if (quotes && quotes.length > 0) {
+        setCuratedQuotes(quotes.map(q => ({ q: q.content, a: q.author })));
+        setQuoteIndex(0);
+      }
+    } catch (e) {
+      setCuratedQuotes([...curatedQuotes].sort(() => Math.random() - 0.5));
+      setQuoteIndex(0);
+    } finally {
+      setIsRefreshingQuotes(false);
+      refreshRotation.value = withTiming(0);
+    }
   };
 
   useEffect(() => {
@@ -272,30 +303,40 @@ export default function HomeScreen() {
             entering={FadeInDown.duration(600).springify()}
             style={styles.headerWrapper}
           >
-            <LinearGradient
-              colors={theme.colors.gradient as any}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.headerCard}
-            >
-              <Bubble size={120} top={-40} left={-30} delay={0} opacity={0.12} />
-              <Bubble size={80} top={20} left={SCREEN_WIDTH - 100} delay={500} opacity={0.08} />
-              <Bubble size={40} top={80} left={SCREEN_WIDTH / 2} delay={1000} opacity={0.1} />
-              
-              <View style={styles.headerTop}>
-                <View style={styles.headerTextGroup}>
-                  <Text style={styles.headerGreeting}>{getGreeting()}</Text>
-                  {isLoggedIn && user?.name ? (
-                    <Text style={styles.headerName}>{user.name.split(' ')[0]}</Text>
-                  ) : (
-                    <Text style={styles.headerName}>PockIt User</Text>
-                  )}
+            <Pressable onPress={() => { mediumImpact(); loadData(); }}>
+              <LinearGradient
+                colors={theme.colors.gradient as any}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.headerCard}
+              >
+                <Bubble size={120} top={-40} left={-30} delay={0} opacity={0.12} />
+                <Bubble size={80} top={20} left={SCREEN_WIDTH - 100} delay={500} opacity={0.08} />
+                <Bubble size={40} top={80} left={SCREEN_WIDTH / 2} delay={1000} opacity={0.1} />
+                
+                <View style={styles.headerTop}>
+                  <View style={styles.headerTextGroup}>
+                    <Text style={styles.headerGreeting}>{getGreeting()}</Text>
+                    {isLoggedIn && user?.name ? (
+                      <Text style={styles.headerName}>{user.name.split(' ')[0]}</Text>
+                    ) : (
+                      <Text style={styles.headerName}>PockIt User</Text>
+                    )}
+                  </View>
+
+                  <View style={styles.headerWeatherGroup}>
+                    <View style={styles.headerWeatherMain}>
+                      <Text style={styles.headerTemp}>{temp}°</Text>
+                      <MaterialCommunityIcons name={weatherMeta.icon as any} size={32} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.weatherHeaderRow}>
+                      <Text style={styles.weatherLocationSmall}>{locationName.toUpperCase()}</Text>
+                      <MaterialCommunityIcons name="map-marker-radius-outline" size={10} color="rgba(255,255,255,0.6)" />
+                    </View>
+                  </View>
                 </View>
-                <View style={[styles.headerIconCircle, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                   <MaterialCommunityIcons name="account-circle-outline" size={32} color="#FFFFFF" />
-                </View>
-              </View>
-            </LinearGradient>
+              </LinearGradient>
+            </Pressable>
           </Animated.View>
 
           {/* Floating Overlapping Search */}
@@ -342,33 +383,6 @@ export default function HomeScreen() {
             </View>
           ) : (
             <>
-              {/* Weather Card */}
-              <Pressable onPress={() => { mediumImpact(); loadData(); }}>
-                <LinearGradient
-                  colors={theme.palette.gradient as any}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.weatherCard}
-                >
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.weatherHeaderRow}>
-                      <Text style={styles.weatherLocation}>{locationName.toUpperCase()}</Text>
-                      <MaterialCommunityIcons name="map-marker-radius-outline" size={10} color="rgba(255,255,255,0.6)" />
-                    </View>
-                    <View style={styles.weatherBodyRow}>
-                      <Text style={styles.weatherTemp}>{temp}°</Text>
-                      <View style={{ marginLeft: 12 }}>
-                        <Text style={styles.weatherCondition}>{weatherMeta.label}</Text>
-                        {locationName.includes('New York') && (
-                          <Text style={styles.locationHint}>Tap to detect</Text>
-                        )}
-                      </View>
-                    </View>
-                  </View>
-                  <MaterialCommunityIcons name={weatherMeta.icon as any} size={48} color="rgba(255,255,255,0.9)" />
-                </LinearGradient>
-              </Pressable>
-
               {/* Quote Carousel */}
               <View style={styles.quoteSection}>
                 <View style={[styles.quoteHeader, { justifyContent: 'space-between' }]}>
@@ -376,8 +390,14 @@ export default function HomeScreen() {
                       <MaterialCommunityIcons name="auto-fix" size={16} color={theme.colors.accent} />
                       <Text style={[styles.quoteLabel, { color: theme.colors.textTertiary }]}>DAILY INSIGHT</Text>
                    </View>
-                   <Pressable onPress={shuffleQuotes} hitSlop={12}>
-                      <MaterialCommunityIcons name="cached" size={18} color={theme.colors.accent} />
+                   <Pressable onPress={shuffleQuotes} hitSlop={12} disabled={isRefreshingQuotes}>
+                      <Animated.View style={refreshAnimatedStyle}>
+                         <MaterialCommunityIcons 
+                           name="cached" 
+                           size={18} 
+                           color={isRefreshingQuotes ? theme.colors.textTertiary : theme.colors.accent} 
+                         />
+                      </Animated.View>
                    </Pressable>
                 </View>
                 
@@ -404,8 +424,14 @@ export default function HomeScreen() {
                     >
                       {curatedQuotes.map((item, idx) => (
                         <View key={idx} style={styles.quoteItem}>
-                          <Text style={styles.quoteText}>"{item.q}"</Text>
-                          <Text style={styles.quoteAuthor}>— {item.a}</Text>
+                          <ScrollView 
+                            showsVerticalScrollIndicator={false} 
+                            nestedScrollEnabled={true}
+                            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 10 }}
+                          >
+                            <Text style={styles.quoteText}>"{item.q}"</Text>
+                            <Text style={styles.quoteAuthor}>— {item.a}</Text>
+                          </ScrollView>
                         </View>
                       ))}
                     </ScrollView>
@@ -535,27 +561,50 @@ const styles = StyleSheet.create({
   },
   headerGreeting: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.85)',
-    fontWeight: '600',
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   headerName: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -1,
+    letterSpacing: -0.5,
     marginTop: -2,
   },
-  headerIconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
+  headerWeatherGroup: {
+    alignItems: 'flex-end',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
   },
+  headerWeatherMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerTemp: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  weatherLocationSmall: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginRight: 4,
+  },
+  weatherHeaderRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginTop: 2,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  weatherBodyRow: { flexDirection: 'row', alignItems: 'center' },
   
   floatingSearchWrapper: {
     marginTop: -28,
@@ -611,51 +660,23 @@ const styles = StyleSheet.create({
   resultName: { fontSize: 15, fontWeight: '700' },
   resultSub: { fontSize: 11, opacity: 0.8 },
   noResults: { textAlign: 'center', marginTop: 20, fontSize: 14 },
-
-  weatherCard: {
-    borderRadius: 24,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 30,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-  },
-  weatherLocation: { color: '#FFFFFF', opacity: 0.8, fontSize: 10, fontWeight: '700', letterSpacing: 1, marginRight: 6 },
-  weatherHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
-  weatherBodyRow: { flexDirection: 'row', alignItems: 'center' },
-  locationHint: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '700',
-    opacity: 0.8,
-    marginTop: 2,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-  },
-  weatherTemp: { color: '#FFFFFF', fontSize: 36, fontWeight: '900' },
-  weatherCondition: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
   
   quoteSection: { marginBottom: 30 },
   quoteHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, paddingHorizontal: 4 },
   quoteLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
   quoteCard: { 
     borderRadius: 28, 
+    height: 150,
     padding: 16,
     elevation: 8,
     shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
+    overflow: 'hidden',
   },
-  quoteControlRow: { flexDirection: 'row', alignItems: 'center' },
-  quoteItem: { width: IS_LARGE_WEB ? (MAX_WIDTH - 120) : (SCREEN_WIDTH - 120), justifyContent: 'center', paddingHorizontal: 10 },
+  quoteControlRow: { flexDirection: 'row', alignItems: 'center', height: '100%' },
+  quoteItem: { width: IS_LARGE_WEB ? (MAX_WIDTH - 120) : (SCREEN_WIDTH - 120), height: '100%', paddingHorizontal: 10 },
   quoteText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', fontStyle: 'italic', lineHeight: 22, textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.1)', textShadowRadius: 4 },
   quoteAuthor: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 4 },
 

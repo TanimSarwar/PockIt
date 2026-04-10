@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.pockit.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "PockIt uses your location to show local weather."
+        "NSLocationWhenInUseUsageDescription": "PockIt uses your location for weather, prayer times, and compass accuracy."
       }
     },
     "android": {

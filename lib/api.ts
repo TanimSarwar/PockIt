@@ -197,20 +197,29 @@ export async function fetchWeather(
   };
 }
 
-// ─── Quote (quotable.io) ───────────────────────────────────────────────────
-
+// ─── Quote (DummyJSON) ──────────────────────────────────────────────────────
+// Returns a single random quote
 export async function fetchQuote(): Promise<Quote> {
-  const data = await fetchJson<{
-    content: string;
-    author: string;
-    tags: string[];
-  }>('https://api.quotable.io/random');
-
+  const data = await fetchJson<any>('https://dummyjson.com/quotes/random');
+  
   return {
-    content: data.content,
+    content: data.quote,
     author: data.author,
-    tags: data.tags,
+    tags: [],
   };
+}
+
+// Returns a list of quotes (default 30)
+export async function fetchQuotesList(): Promise<Quote[]> {
+  const data = await fetchJson<{ quotes: any[] }>('https://dummyjson.com/quotes?limit=100');
+
+  if (!data?.quotes || !Array.isArray(data.quotes)) return [];
+
+  return data.quotes.map((item: any) => ({
+    content: item.quote,
+    author: item.author,
+    tags: [],
+  }));
 }
 
 // ─── Exchange Rates (open.er-api.com) ──────────────────────────────────────
