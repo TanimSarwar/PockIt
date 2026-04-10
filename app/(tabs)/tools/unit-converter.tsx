@@ -118,6 +118,13 @@ export default function UnitConverterScreen() {
     return parseFloat(converted.toFixed(6)).toString();
   }, [inputValue, fromUnit, toUnit, units]);
 
+  const unitRate = useMemo(() => {
+    if (!units[fromUnit] || !units[toUnit]) return '0';
+    const base = units[fromUnit].toBase(1);
+    const converted = units[toUnit].fromBase(base);
+    return parseFloat(converted.toFixed(6)).toString();
+  }, [fromUnit, toUnit, units]);
+
   const handleSwap = useCallback(() => {
     mediumImpact();
     setFromUnit(toUnit);
@@ -143,11 +150,15 @@ export default function UnitConverterScreen() {
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
           <LinearGradient colors={theme.palette.gradient as any} style={styles.featuredCard}>
-            <Text style={styles.featuredLabel}>SMART CONVERSION</Text>
-            <Text style={styles.featuredTitle}>{category.toUpperCase()}</Text>
+            <Text style={styles.featuredLabel}>{category.toUpperCase()} CONVERSION</Text>
+            <Text style={styles.featuredTitle}>
+              {fromUnit.toUpperCase()} → {toUnit.toUpperCase()}
+            </Text>
             <View style={styles.featuredBadge}>
-              <MaterialCommunityIcons name={CATEGORY_ICONS[category] as any} size={20} color={theme.colors.accent} />
-              <Text style={[styles.featuredBadgeText, { color: theme.colors.accent }]}>{units[fromUnit]?.label}</Text>
+              <MaterialCommunityIcons name="calculator" size={14} color={theme.colors.accent} />
+              <Text style={[styles.featuredBadgeText, { color: theme.colors.accent }]}>
+                {inputValue} {fromUnit} = {result} {toUnit}
+              </Text>
             </View>
           </LinearGradient>
 
@@ -191,7 +202,7 @@ export default function UnitConverterScreen() {
               </View>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.unitPicker}>
-                {unitKeys.map(uk => {
+                {unitKeys.filter(uk => uk !== toUnit).map(uk => {
                   const active = uk === fromUnit;
                   return (
                     <Pressable
@@ -237,7 +248,7 @@ export default function UnitConverterScreen() {
               </View>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.unitPicker}>
-                {unitKeys.map(uk => {
+                {unitKeys.filter(uk => uk !== fromUnit).map(uk => {
                   const active = uk === toUnit;
                   return (
                     <Pressable
@@ -251,22 +262,10 @@ export default function UnitConverterScreen() {
                 })}
               </ScrollView>
 
-              <View style={[styles.resultArea, { backgroundColor: theme.colors.surfaceSecondary }]}>
-                <Text style={[styles.resultText, { color: result ? theme.colors.text : theme.colors.textTertiary }]}>
-                  {result || '0.00'}
-                </Text>
-                <Text style={[styles.resultSub, { color: theme.colors.textTertiary }]}>
-                  {units[toUnit]?.label}
-                </Text>
-              </View>
+
             </View>
           </View>
 
-          <View style={styles.formulaCard}>
-            <Text style={[styles.formulaText, { color: theme.colors.textSecondary }]}>
-              {inputValue} {fromUnit} = <Text style={{ color: theme.colors.accent, fontWeight: '800' }}>{result}</Text> {toUnit}
-            </Text>
-          </View>
 
         </ScrollView>
       </KeyboardAvoidingView>
@@ -307,12 +306,4 @@ const styles = StyleSheet.create({
   swapBtnAnim: { width: 48, height: 48, zIndex: 11 },
   swapBtnPressable: { flex: 1, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, borderRadius: 24 },
   swapGradient: { flex: 1, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-
-  resultArea: { padding: 16, borderRadius: 20, minHeight: 80, justifyContent: 'center', alignItems: 'center' },
-  resultText: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
-  resultSub: { fontSize: 12, fontWeight: '600', marginTop: 4 },
-
-  formulaCard: { marginTop: 20, alignItems: 'center', padding: 16 },
-  formulaText: { fontSize: 14, fontWeight: '600' },
 });
-

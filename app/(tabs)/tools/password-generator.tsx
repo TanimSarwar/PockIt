@@ -186,8 +186,8 @@ export default function PasswordGeneratorScreen() {
 
             <View style={styles.optionsWrap}>
                {[
-                 { label: 'Lowercase', value: useLower, set: setUseLower, icon: 'format-letter-lowercase' },
-                 { label: 'Uppercase', value: useUpper, set: setUseUpper, icon: 'format-letter-uppercase' },
+                 { label: 'Lowercase', value: useLower, set: setUseLower, icon: 'format-lowercase' },
+                 { label: 'Uppercase', value: useUpper, set: setUseUpper, icon: 'format-uppercase' },
                  { label: 'Numbers', value: useNumbers, set: setUseNumbers, icon: 'numeric' },
                  { label: 'Symbols', value: useSymbols, set: setUseSymbols, icon: 'at' },
                ].map((opt) => (
