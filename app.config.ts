@@ -8,6 +8,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
+  newArchEnabled: false,
   scheme: 'pockit',
   splash: {
     image: './assets/splash-icon.png',
@@ -28,6 +29,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: '#6366F1',
     },
     package: 'com.pockit.app',
+    versionCode: 1,
     permissions: [
       'ACCESS_COARSE_LOCATION',
       'ACCESS_FINE_LOCATION',
