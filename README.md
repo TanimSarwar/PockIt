@@ -6,7 +6,7 @@ A production-ready cross-platform super app for Android, iOS, and Web built with
 
 ## Tech Stack
 
-- **Framework:** React Native + Expo (SDK 54, managed workflow)
+- **Framework:** React Native + Expo (SDK 52, managed workflow)
 - **Web:** React Native Web
 - **Navigation:** Expo Router (file-based routing)
 - **State Management:** Zustand with AsyncStorage persistence

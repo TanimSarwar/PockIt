@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import 'react-native-gesture-handler';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -17,9 +17,7 @@ import { useSettingsStore } from '../store/settings';
 import { ErrorBoundary } from './ErrorBoundary';
 
 // Keep the splash screen visible while fonts load
-SplashScreen.preventAutoHideAsync().catch(() => {
-  // If preventAutoHideAsync fails (e.g. splash already hidden), ignore it
-});
+SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
   const { theme, isDark } = useTheme();
@@ -82,39 +80,22 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
-  // Hide splash screen as soon as fonts are loaded (or errored)
-  // Using useEffect instead of onLayout because onLayout on SafeAreaProvider
-  // is unreliable on Android production builds and may never fire
-  // Also add a safety timeout to force-hide splash after 5 seconds
-  // in case fonts never load in production
-  const [isTimedOut, setIsTimedOut] = useState(false);
-
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setIsTimedOut(true);
-      SplashScreen.hideAsync().catch(() => {});
-    }, 5000);
-    return () => clearTimeout(timeout);
-  }, []);
-
-  useEffect(() => {
+  const onLayoutRootView = useCallback(async () => {
     if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync().catch(() => {});
+      await SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError && !isTimedOut) {
+  if (!fontsLoaded && !fontError) {
     return null;
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ErrorBoundary>
-        <SafeAreaProvider>
-          <RootLayoutNav />
-        </SafeAreaProvider>
-      </ErrorBoundary>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <SafeAreaProvider onLayout={onLayoutRootView}>
+        <RootLayoutNav />
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
 

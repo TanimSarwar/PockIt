@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Platform, Dimensions, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Platform, Dimensions, Animated, Easing, Linking } from 'react-native';
 import * as Location from 'expo-location';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Svg, Path } from 'react-native-svg';
+import { Svg, Path, Circle as SvgCircle } from 'react-native-svg';
 import { useTheme } from '../../../store/theme';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Card } from '../../../components/ui/Card';
@@ -20,6 +20,15 @@ interface PrayerTimesData {
   Isha: string;
 }
 
+interface MosqueData {
+  id: number;
+  name: string;
+  lat: number;
+  lon: number;
+  distance: number; // in meters
+  direction: string;
+}
+
 const PRAYER_ICONS: Record<string, any> = {
   Fajr: 'weather-sunset-up',
   Sunrise: 'weather-sunny',
@@ -29,6 +38,34 @@ const PRAYER_ICONS: Record<string, any> = {
   Maghrib: 'weather-night',
   Isha: 'moon-waning-crescent',
 };
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const toRad = (x: number) => (x * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function getBearing(lat1: number, lon1: number, lat2: number, lon2: number): string {
+  const toRad = (x: number) => (x * Math.PI) / 180;
+  const toDeg = (x: number) => (x * 180) / Math.PI;
+  const dLon = toRad(lon2 - lon1);
+  const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+  let bearing = toDeg(Math.atan2(y, x));
+  bearing = (bearing + 360) % 360;
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return dirs[Math.round(bearing / 45) % 8];
+}
+
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)}m`;
+  return `${(meters / 1000).toFixed(1)}km`;
+}
 
 // ─── Countdown Component ───────────────────────────────────────────────────
 
@@ -108,6 +145,307 @@ function SunProgress({ sunrise, sunset }: { sunrise: string; sunset: string }) {
         <View style={styles.sunShine} />
         <MaterialCommunityIcons name="white-balance-sunny" size={20} color="#FFD700" />
       </View>
+    </View>
+  );
+}
+
+// ─── Mini Map Component ───────────────────────────────────────────────────
+
+function MiniMap({ mosques, userLat, userLon }: { mosques: MosqueData[]; userLat: number; userLon: number }) {
+  const { theme, isDark } = useTheme();
+
+  if (mosques.length === 0) return null;
+
+  // Real Google Maps Colors
+  const MAP_COLORS = isDark ? {
+    land: '#242f3e',
+    water: '#17263c',
+    road: '#38414e',
+    park: '#263c3f',
+    grid: 'rgba(255,255,255,0.05)',
+  } : {
+    land: '#f9f9f9',
+    water: '#e0eff1',
+    road: '#ffffff',
+    park: '#e8f5e9',
+    grid: 'rgba(0,0,0,0.03)',
+  };
+
+  const allLats = [userLat, ...mosques.map(m => m.lat)];
+  const allLons = [userLon, ...mosques.map(m => m.lon)];
+  const minLat = Math.min(...allLats);
+  const maxLat = Math.max(...allLats);
+  const minLon = Math.min(...allLons);
+  const maxLon = Math.max(...allLons);
+
+  const padLat = Math.max((maxLat - minLat) * 0.25, 0.002);
+  const padLon = Math.max((maxLon - minLon) * 0.25, 0.002);
+
+  const mapMinLat = minLat - padLat;
+  const mapMaxLat = maxLat + padLat;
+  const mapMinLon = minLon - padLon;
+  const mapMaxLon = maxLon + padLon;
+
+  const mapW = SCREEN_WIDTH - 32;
+  const mapH = 180;
+
+  const toX = (lon: number) => ((lon - mapMinLon) / (mapMaxLon - mapMinLon)) * mapW;
+  const toY = (lat: number) => ((mapMaxLat - lat) / (mapMaxLat - mapMinLat)) * mapH;
+
+  const userX = toX(userLon);
+  const userY = toY(userLat);
+
+  const handleOpenGoogleMaps = () => {
+    const url = Platform.select({
+      android: `geo:${userLat},${userLon}?q=mosque`,
+      ios: `maps://maps.apple.com/?q=mosque&sll=${userLat},${userLon}`,
+      default: `https://www.google.com/maps/search/mosque/@${userLat},${userLon},14z`,
+    });
+    if (url) Linking.openURL(url);
+  };
+
+  return (
+    <Pressable onPress={handleOpenGoogleMaps} style={[styles.miniMapContainer, { backgroundColor: MAP_COLORS.land, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }]}>
+      <Svg width={mapW} height={mapH} style={styles.miniMapSvg}>
+        {/* Terrain: Simulated Water/Parks */}
+        <SvgCircle cx={mapW * 0.1} cy={mapH * 0.2} r={mapW * 0.15} fill={MAP_COLORS.water} opacity={0.6} />
+        <Path d={`M ${mapW * 0.7} ${mapH * 0.8} Q ${mapW * 0.8} ${mapH * 0.6} ${mapW} ${mapH * 0.9} L ${mapW} ${mapH} L ${mapW * 0.6} ${mapH} Z`} fill={MAP_COLORS.park} opacity={0.5} />
+
+        {/* City Grid: Roads */}
+        {Array.from({ length: 8 }).map((_, i) => (
+          <React.Fragment key={`road-${i}`}>
+            <Path d={`M ${(i + 1) * (mapW / 9)} 0 L ${(i + 1) * (mapW / 9)} ${mapH}`} stroke={MAP_COLORS.road} strokeWidth="3" opacity={0.8} />
+            <Path d={`M 0 ${(i + 1) * (mapH / 9)} L ${mapW} ${(i + 1) * (mapH / 9)}`} stroke={MAP_COLORS.road} strokeWidth="3" opacity={0.8} />
+          </React.Fragment>
+        ))}
+
+        {/* Direction Lines (Dashed) */}
+        {mosques.slice(0, 3).map((m) => (
+          <Path
+            key={`line-${m.id}`}
+            d={`M ${userX},${userY} L ${toX(m.lon)},${toY(m.lat)}`}
+            stroke={theme.colors.accent}
+            strokeWidth="1.5"
+            strokeDasharray="5,5"
+            opacity={0.3}
+          />
+        ))}
+
+        {/* Mosque Markers (Google Style Pins) */}
+        {mosques.map((m, i) => {
+          const mx = toX(m.lon);
+          const my = toY(m.lat);
+          return (
+            <React.Fragment key={`marker-${m.id}`}>
+              {/* Pin Shadow */}
+              <SvgCircle cx={mx} cy={my} r={4} fill="rgba(0,0,0,0.2)" />
+              {/* Pin Body */}
+              <Path 
+                d={`M ${mx} ${my} L ${mx - 6} ${my - 14} A 7 7 0 1 1 ${mx + 6} ${my - 14} Z`} 
+                fill={i === 0 ? theme.colors.accent : (isDark ? '#444' : '#888')} 
+              />
+              <SvgCircle cx={mx} cy={my - 14} r={3} fill="#FFFFFF" />
+            </React.Fragment>
+          );
+        })}
+
+        {/* User Location Pulse */}
+        <SvgCircle cx={userX} cy={userY} r={14} fill={theme.colors.accent} opacity={0.15} />
+        <SvgCircle cx={userX} cy={userY} r={8} fill="#FFFFFF" />
+        <SvgCircle cx={userX} cy={userY} r={5} fill={theme.colors.accent} />
+      </Svg>
+
+      {/* Dynamic Map Labels */}
+      {mosques.slice(0, 2).map((m, i) => (
+        <View key={`lbl-${m.id}`} style={[styles.mapLabelPill, { left: toX(m.lon) - 30, top: toY(m.lat) - 42, backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)' }]}>
+           <Text style={[styles.mapLabelText, { color: theme.colors.text }]} numberOfLines={1}>{m.name}</Text>
+        </View>
+      ))}
+
+      <View style={[styles.mapOverlayBadge, { backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.9)' }]}>
+        <MaterialCommunityIcons name="google-maps" size={14} color={theme.colors.accent} />
+        <Text style={[styles.mapOverlayText, { color: theme.colors.text }]}>Explore Live Map</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+// ─── Nearby Mosques Component ─────────────────────────────────────────────
+
+function NearbyMosques({ lat, lon }: { lat: number; lon: number }) {
+  const { theme, isDark } = useTheme();
+  const [mosques, setMosques] = useState<MosqueData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  const fetchMosques = useCallback(async () => {
+    if (!lat || !lon) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+
+      const radius = 3500;
+      const query = `[out:json][timeout:15];(node["amenity"="place_of_worship"]["religion"="muslim"](around:${radius},${lat},${lon});way["amenity"="place_of_worship"]["religion"="muslim"](around:${radius},${lat},${lon});node["amenity"="mosque"](around:${radius},${lat},${lon}););out center body 12;`;
+      
+      // Try primary server with fallback mirror
+      const servers = [
+        'https://overpass-api.de/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter',
+        'https://lz4.overpass-api.de/api/interpreter'
+      ];
+
+      let data = null;
+      for (const server of servers) {
+        try {
+          const res = await fetch(server, {
+            method: 'POST',
+            body: `data=${encodeURIComponent(query)}`,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          });
+          if (res.ok) {
+            data = await res.json();
+            break;
+          }
+        } catch (e) {
+          console.warn(`Server ${server} failed, trying next...`);
+        }
+      }
+
+      if (data && data.elements) {
+        const results: MosqueData[] = data.elements
+          .map((el: any) => {
+            const elLat = el.lat ?? el.center?.lat;
+            const elLon = el.lon ?? el.center?.lon;
+            if (!elLat || !elLon) return null;
+
+            const dist = haversineDistance(lat, lon, elLat, elLon);
+            const dir = getBearing(lat, lon, elLat, elLon);
+            let name = el.tags?.name || el.tags?.["name:en"] || el.tags?.["name:bn"] || 'Mosque';
+            
+            return { id: el.id, name, lat: elLat, lon: elLon, distance: dist, direction: dir };
+          })
+          .filter(Boolean)
+          .sort((a: MosqueData, b: MosqueData) => a.distance - b.distance);
+
+        setMosques(results);
+      } else {
+        setMosques([]);
+      }
+    } catch (e) {
+      console.error('Mosque fetch error:', e);
+      setError('Connection issue. Please retry.');
+    } finally {
+      setLoading(false);
+    }
+  }, [lat, lon]);
+
+  useEffect(() => {
+    fetchMosques();
+  }, [lat, lon]);
+
+  const openMosqueInMaps = (mosque: MosqueData) => {
+    const url = Platform.select({
+      android: `geo:${mosque.lat},${mosque.lon}?q=${mosque.lat},${mosque.lon}(${encodeURIComponent(mosque.name)})`,
+      ios: `maps://maps.apple.com/?q=${encodeURIComponent(mosque.name)}&ll=${mosque.lat},${mosque.lon}`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${mosque.lat},${mosque.lon}&destination_place_id=${encodeURIComponent(mosque.name)}`,
+    });
+    if (url) Linking.openURL(url);
+  };
+
+  const displayMosques = expanded ? mosques : mosques.slice(0, 3);
+
+  return (
+    <View style={styles.mosquesSection}>
+      <View style={styles.mosquesSectionHeader}>
+        <View style={styles.mosquesTitleRow}>
+          <View style={[styles.mosquesTitleIcon, { backgroundColor: theme.colors.accentMuted }]}>
+            <MaterialCommunityIcons name="mosque" size={16} color={theme.colors.accent} />
+          </View>
+          <View>
+            <Text style={[styles.mosquesSectionTitle, { color: theme.colors.text }]}>Nearby Mosques</Text>
+            {mosques.length > 0 && (
+              <Text style={[styles.mosquesCount, { color: theme.colors.textTertiary }]}>
+                {mosques.length} found within 3km
+              </Text>
+            )}
+          </View>
+        </View>
+        <Pressable onPress={fetchMosques} style={[styles.mosquesRefresh, { backgroundColor: theme.colors.surfaceSecondary }]}>
+          <MaterialCommunityIcons name="refresh" size={16} color={theme.colors.textSecondary} />
+        </Pressable>
+      </View>
+
+      {loading ? (
+        <View style={[styles.mosquesLoading, { backgroundColor: theme.colors.surface }]}>
+          <ActivityIndicator color={theme.colors.accent} size="small" />
+          <Text style={[styles.mosquesLoadingText, { color: theme.colors.textSecondary }]}>Searching nearby mosques...</Text>
+        </View>
+      ) : error ? (
+        <View style={[styles.mosquesError, { backgroundColor: theme.colors.surface }]}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={24} color={theme.colors.textTertiary} />
+          <Text style={[styles.mosquesErrorText, { color: theme.colors.textSecondary }]}>{error}</Text>
+          <Pressable onPress={fetchMosques} style={[styles.retryBtn, { backgroundColor: theme.colors.accentMuted }]}>
+            <Text style={[styles.retryText, { color: theme.colors.accent }]}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : mosques.length === 0 ? (
+        <View style={[styles.mosquesEmpty, { backgroundColor: theme.colors.surface }]}>
+          <MaterialCommunityIcons name="map-marker-off-outline" size={32} color={theme.colors.textTertiary} />
+          <Text style={[styles.mosquesEmptyText, { color: theme.colors.textSecondary }]}>No mosques found within 3km</Text>
+        </View>
+      ) : (
+        <>
+          {/* Mini Map */}
+          <MiniMap mosques={mosques} userLat={lat} userLon={lon} />
+
+          {/* Mosque List */}
+          {displayMosques.map((mosque, i) => (
+            <Pressable
+              key={mosque.id}
+              onPress={() => openMosqueInMaps(mosque)}
+              style={[styles.mosqueCard, { backgroundColor: theme.colors.surface, borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}
+            >
+              <View style={styles.mosqueCardLeft}>
+                <View style={[styles.mosqueRank, { backgroundColor: i === 0 ? theme.colors.accentMuted : theme.colors.surfaceSecondary }]}>
+                  <Text style={[styles.mosqueRankText, { color: i === 0 ? theme.colors.accent : theme.colors.textTertiary }]}>
+                    {i + 1}
+                  </Text>
+                </View>
+                <View style={styles.mosqueInfo}>
+                  <Text style={[styles.mosqueName, { color: theme.colors.text }]} numberOfLines={1}>
+                    {mosque.name}
+                  </Text>
+                  <View style={styles.mosqueMetaRow}>
+                    <MaterialCommunityIcons name="map-marker-distance" size={12} color={theme.colors.textTertiary} />
+                    <Text style={[styles.mosqueMeta, { color: theme.colors.textTertiary }]}>
+                      {formatDistance(mosque.distance)}
+                    </Text>
+                    <View style={[styles.mosqueDot, { backgroundColor: theme.colors.textTertiary }]} />
+                    <MaterialCommunityIcons name="compass-outline" size={12} color={theme.colors.textTertiary} />
+                    <Text style={[styles.mosqueMeta, { color: theme.colors.textTertiary }]}>
+                      {mosque.direction}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <View style={[styles.mosqueNavBtn, { backgroundColor: theme.colors.accentMuted }]}>
+                <MaterialCommunityIcons name="navigation-variant-outline" size={16} color={theme.colors.accent} />
+              </View>
+            </Pressable>
+          ))}
+
+          {mosques.length > 3 && (
+            <Pressable onPress={() => setExpanded(!expanded)} style={[styles.showMoreBtn, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
+              <Text style={[styles.showMoreText, { color: theme.colors.accent }]}>
+                {expanded ? 'Show Less' : `Show ${mosques.length - 3} More`}
+              </Text>
+              <MaterialCommunityIcons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={theme.colors.accent} />
+            </Pressable>
+          )}
+        </>
+      )}
     </View>
   );
 }
@@ -255,6 +593,11 @@ export default function PrayerTimesScreen() {
           )}
         </View>
 
+        {/* Nearby Mosques Panel */}
+        {!loading && coords && (
+          <NearbyMosques lat={coords.lat} lon={coords.lon} />
+        )}
+
         <View style={styles.methodCard}>
           <Text style={[styles.methodTitle, { color: theme.colors.textSecondary }]}>METHODOLOGY</Text>
           <Text style={[styles.methodText, { color: theme.colors.textTertiary }]}>
@@ -333,7 +676,211 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     backgroundColor: 'rgba(255, 215, 0, 0.3)',
     transform: [{ scale: 1.5 }],
-    filter: 'blur(6px)',
     opacity: 0.5,
+  },
+
+  // Mosaic / Mosque Finders
+  mosquesSection: {
+    marginTop: 24,
+  },
+  mosquesSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  mosquesTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  mosquesTitleIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mosquesSectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  mosquesCount: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  mosquesRefresh: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  mosquesLoading: {
+    height: 100,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  mosquesLoadingText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  mosquesError: {
+    padding: 24,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  mosquesErrorText: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  retryBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  retryText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  mosquesEmpty: {
+    paddingVertical: 40,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  mosquesEmptyText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+
+  miniMapContainer: {
+    borderRadius: 24,
+    height: 180,
+    width: '100%',
+    marginBottom: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    position: 'relative',
+  },
+  miniMapSvg: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  mapMosqueLabel: {
+    position: 'absolute',
+  },
+  mapOverlayBadge: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  mapOverlayText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  mapLabelPill: {
+    position: 'absolute',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+    zIndex: 10,
+    maxWidth: 100,
+  },
+  mapLabelText: {
+    fontSize: 9,
+    fontWeight: '800',
+  },
+
+  mosqueCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 20,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  mosqueCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  mosqueRank: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mosqueRankText: {
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  mosqueInfo: {
+    flex: 1,
+  },
+  mosqueName: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  mosqueMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  mosqueMeta: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  mosqueDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    marginHorizontal: 2,
+    opacity: 0.3,
+  },
+  mosqueNavBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+  showMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginTop: 8,
+    gap: 4,
+    borderBottomWidth: 1,
+    borderStyle: 'dashed',
+  },
+  showMoreText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
