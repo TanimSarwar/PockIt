@@ -201,6 +201,7 @@ export default function PasswordGeneratorScreen() {
                       onValueChange={(val) => { lightImpact(); opt.set(val); }} 
                       trackColor={{ true: theme.colors.accent, false: theme.colors.border }} 
                       thumbColor={Platform.OS === 'ios' ? undefined : '#FFF'}
+                      style={Platform.OS === 'ios' ? { transform: [{ scale: 0.8 }] } : { transform: [{ scale: 0.9 }, { translateX: 4 }] }}
                     />
                  </View>
                ))}
@@ -249,8 +250,8 @@ const styles = StyleSheet.create({
   strengthBadgeText: { fontSize: 11, fontWeight: '900' },
 
   section: { paddingVertical: 8 },
-  pwBox: { padding: 20, borderRadius: 20, alignItems: 'center', minHeight: 100 },
-  pwText: { fontSize: 24, fontWeight: '700', textAlign: 'center', marginBottom: 16, letterSpacing: 1, 
+  pwBox: { padding: 16, borderRadius: 20, alignItems: 'center', minHeight: 80 },
+  pwText: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 12, letterSpacing: 1, 
     ...Platform.select({ ios: { fontFamily: 'Courier' }, android: { fontFamily: 'monospace' } })
   },
   strengthBarBg: { height: 4, width: '100%', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 2, overflow: 'hidden' },
@@ -262,14 +263,14 @@ const styles = StyleSheet.create({
   genBtnPressable: { flex: 1, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, borderRadius: 24 },
   genGradient: { flex: 1, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
 
-  lengthPicker: { marginBottom: 20, marginHorizontal: -4 },
-  lengthPill: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
-  lengthPillText: { fontSize: 14, fontWeight: '700' },
+  lengthPicker: { marginBottom: 16, marginHorizontal: -4 },
+  lengthPill: { width: 44, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  lengthPillText: { fontSize: 13, fontWeight: '700' },
 
-  optionsWrap: { gap: 4 },
-  optionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  optionInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  optionText: { fontSize: 14, fontWeight: '600' },
+  optionsWrap: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
+  optionRow: { width: '48%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2 },
+  optionInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  optionText: { fontSize: 12, fontWeight: '600' },
 
   historyContainer: { marginTop: 24 },
   sectionTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 12, marginLeft: 4 },

@@ -111,19 +111,44 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
       )
     : null;
 
-  const renderFeature = (f: Feature, index: number) => {
+  const renderFeature = (list: Feature[], f: Feature, index: number) => {
+    // Determine if this item should be wide dynamically
+    let isDynamicWide = f.layout === 'wide';
+    
+    if (!isDynamicWide) {
+        // Count regular items before this one in the current contiguous block of regular items
+        let regularCountBefore = 0;
+        for (let i = index - 1; i >= 0; i--) {
+            if (list[i].layout === 'wide') break;
+            regularCountBefore++;
+        }
+        
+        const isStartOfRow = regularCountBefore % 2 === 0;
+        
+        if (isStartOfRow) {
+            // Check if there's a buddy next to it
+            const nextItem = list[index + 1];
+            const isLastInBlock = !nextItem || nextItem.layout === 'wide';
+            if (isLastInBlock) {
+                isDynamicWide = true;
+            }
+        }
+    }
+
+    const itemWidth = isDynamicWide ? '100%' : '48.5%';
+
     return (
       <Animated.View 
         key={f.id} 
         entering={Platform.OS === 'web' ? FadeInDown.delay(index * 50).springify() : FadeInDown.delay(index * 30).duration(400)}
-        style={[styles.gridItem, { width: '48.5%' }]}
+        style={[styles.gridItem, { width: itemWidth }]}
       >
         <FeatureCard
           icon={f.icon}
           title={f.name}
           description={f.description}
           category={category}
-          layout={f.layout}
+          layout={isDynamicWide ? 'wide' : f.layout}
           onPress={() => onNavigate(f.route, f.id)}
           onLongPress={() => togglePin(f.id)}
           isPinned={pinnedFeatures.includes(f.id)}
@@ -197,7 +222,7 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
                 {filteredFeatures.length} tools found
               </Text>
               <View style={styles.grid}>
-                {filteredFeatures.map((f, i) => renderFeature(f, i))}
+                {filteredFeatures.map((f, i) => renderFeature(filteredFeatures, f, i))}
               </View>
               {filteredFeatures.length === 0 && (
                 <View style={styles.emptyResults}>
@@ -228,14 +253,14 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
                 
                 <View style={[styles.sectionCard, { backgroundColor: theme.colors.surfaceSecondary }]}>
                   <View style={styles.grid}>
-                    {section.features.map((f, i) => renderFeature(f, i))}
+                    {section.features.map((f, i) => renderFeature(section.features, f, i))}
                   </View>
                 </View>
               </View>
             ))
           ) : (
             <View style={styles.grid}>
-              {allFeatures.map((f, i) => renderFeature(f, i))}
+              {allFeatures.map((f, i) => renderFeature(allFeatures, f, i))}
             </View>
           )}
         </View>

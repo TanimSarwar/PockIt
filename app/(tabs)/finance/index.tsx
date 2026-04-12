@@ -20,7 +20,7 @@ export default function FinanceScreen() {
     title: s.title,
     features: s.ids.map((id) => {
       const f = combined.find((feat) => feat.id === id);
-      return f ? { ...f, description: undefined } : null;
+      return f ? f : null;
     }).filter(Boolean) as typeof allFeatures,
   })).filter((s) => s.features.length > 0);
 

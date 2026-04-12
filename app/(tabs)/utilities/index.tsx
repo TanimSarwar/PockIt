@@ -20,7 +20,7 @@ export default function UtilitiesScreen() {
     title: s.title,
     features: s.ids.map((id) => {
       const f = allFeatures.find((feat) => feat.id === id);
-      return f ? { ...f, description: undefined } : null;
+      return f ? f : null;
     }).filter(Boolean) as typeof allFeatures,
   })).filter((s) => s.features.length > 0);
 

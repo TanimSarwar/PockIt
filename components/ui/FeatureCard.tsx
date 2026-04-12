@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { 
   useAnimatedStyle, 
@@ -173,7 +173,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
         </Pressable>
 
         {/* Text Container */}
-        <View style={{ flex: 1, alignItems: isRegular ? 'center' : 'flex-start' }}>
+        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
           <Text
             style={[
               styles.title,
@@ -181,7 +181,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                 color: theme.colors.text,
                 fontSize: 14,
                 fontFamily: theme.fontFamily.bold,
-                textAlign: isRegular ? 'center' : 'left',
+                textAlign: 'center',
               },
             ]}
             numberOfLines={2}

@@ -35,10 +35,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'RECORD_AUDIO',
       'MODIFY_AUDIO_SETTINGS'
     ],
-    // @ts-ignore
-    edgeToEdgeEnabled: true,
-    // @ts-ignore
-    predictiveBackGestureEnabled: false,
   },
   web: {
     favicon: './assets/favicon.png',

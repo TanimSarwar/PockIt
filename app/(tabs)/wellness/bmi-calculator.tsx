@@ -145,12 +145,13 @@ const sc = StyleSheet.create({
 export default function BmiCalculatorScreen() {
   const { theme } = useTheme();
 
-  const [heightUnit, setHeightUnit] = useState<'cm' | 'ft'>('cm');
+  const [heightUnit, setHeightUnit] = useState<'cm' | 'ft'>('ft');
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
   const [heightCm, setHeightCm] = useState('');
   const [heightFt, setHeightFt] = useState('');
   const [heightIn, setHeightIn] = useState('');
   const [weight, setWeight] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ bmi: number; category: BmiCategory } | null>(null);
   const [history, setHistory] = useState<BmiEntry[]>([]);
 
@@ -183,13 +184,14 @@ export default function BmiCalculatorScreen() {
       weightInKg = parseFloat(weight) * 0.453592;
     }
 
-    if (!heightInCm || heightInCm < 50 || heightInCm > 300) {
-      Alert.alert('Invalid Height', 'Please enter a valid height.');
+    setError(null);
+    if (!heightInCm || heightInCm < 40 || heightInCm > 300) {
+      setError('Please enter a valid height.');
       return;
     }
 
-    if (!weightInKg || weightInKg < 10 || weightInKg > 500) {
-      Alert.alert('Invalid Weight', 'Please enter a valid weight.');
+    if (!weightInKg || weightInKg < 2 || weightInKg > 600) {
+      setError('Please enter a valid weight.');
       return;
     }
 
@@ -262,13 +264,11 @@ export default function BmiCalculatorScreen() {
 
         {/* Input Section (Settings Card style) */}
         <View style={[styles.settingsCard, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>Parameters</Text>
-          
           {/* Height input */}
           <View style={styles.fieldGroup}>
             <View style={styles.fieldHeader}>
               <Text style={[styles.settingLabel, { color: theme.colors.textSecondary }]}>HEIGHT</Text>
-              <View style={styles.timerRow}>
+              <View style={styles.unitRow}>
                 {(['cm', 'ft'] as const).map((u) => (
                   <Pressable
                     key={u}
@@ -277,19 +277,18 @@ export default function BmiCalculatorScreen() {
                       setHeightUnit(u);
                     }}
                     style={[
-                      styles.timerPill,
+                      styles.unitPill,
                       {
                         backgroundColor:
                           heightUnit === u
                             ? theme.colors.accent
                             : theme.colors.surfaceSecondary,
                       },
-                      { flex: 0, paddingHorizontal: 16 }
                     ]}
                   >
                     <Text
                       style={[
-                        styles.timerPillText,
+                        styles.unitPillText,
                         {
                           color:
                             heightUnit === u
@@ -309,31 +308,28 @@ export default function BmiCalculatorScreen() {
               <PockItInput
                 value={heightCm}
                 onChangeText={setHeightCm}
-                placeholder="e.g. 170"
+                placeholder="0"
                 keyboardType="decimal-pad"
+                inputStyle={{ fontSize: 14 }}
               />
             ) : (
-              <View style={styles.ftInRow}>
-                <View style={{ flex: 1 }}>
-                  <PockItInput
-                    value={heightFt}
-                    onChangeText={setHeightFt}
-                    placeholder="ft"
-                    keyboardType="number-pad"
-                    inputStyle={{ textAlign: 'center' }}
-                  />
-                </View>
-                <Text style={[styles.ftInSep, { color: theme.colors.textSecondary }]}>ft</Text>
-                <View style={{ flex: 1 }}>
-                  <PockItInput
-                    value={heightIn}
-                    onChangeText={setHeightIn}
-                    placeholder="in"
-                    keyboardType="number-pad"
-                    inputStyle={{ textAlign: 'center' }}
-                  />
-                </View>
-                <Text style={[styles.ftInSep, { color: theme.colors.textSecondary }]}>in</Text>
+              <View style={styles.ftInRowCompact}>
+                <PockItInput
+                  value={heightFt}
+                  onChangeText={setHeightFt}
+                  placeholder="ft"
+                  keyboardType="number-pad"
+                  containerStyle={{ flex: 1 }}
+                  inputStyle={{ fontSize: 14 }}
+                />
+                <PockItInput
+                  value={heightIn}
+                  onChangeText={setHeightIn}
+                  placeholder="in"
+                  keyboardType="number-pad"
+                  containerStyle={{ flex: 1 }}
+                  inputStyle={{ fontSize: 14 }}
+                />
               </View>
             )}
           </View>
@@ -342,7 +338,7 @@ export default function BmiCalculatorScreen() {
           <View style={[styles.fieldGroup, { marginTop: 12 }]}>
             <View style={styles.fieldHeader}>
               <Text style={[styles.settingLabel, { color: theme.colors.textSecondary }]}>WEIGHT</Text>
-              <View style={styles.timerRow}>
+              <View style={styles.unitRow}>
                 {(['kg', 'lbs'] as const).map((u) => (
                   <Pressable
                     key={u}
@@ -351,19 +347,18 @@ export default function BmiCalculatorScreen() {
                       setWeightUnit(u);
                     }}
                     style={[
-                      styles.timerPill,
+                      styles.unitPill,
                       {
                         backgroundColor:
                           weightUnit === u
                             ? theme.colors.accent
                             : theme.colors.surfaceSecondary,
                       },
-                      { flex: 0, paddingHorizontal: 16 }
                     ]}
                   >
                     <Text
                       style={[
-                        styles.timerPillText,
+                        styles.unitPillText,
                         {
                           color:
                             weightUnit === u
@@ -381,10 +376,19 @@ export default function BmiCalculatorScreen() {
             <PockItInput
               value={weight}
               onChangeText={setWeight}
-              placeholder={weightUnit === 'kg' ? 'e.g. 70' : 'e.g. 154'}
+              placeholder="0"
               keyboardType="decimal-pad"
+              inputStyle={{ fontSize: 14 }}
             />
           </View>
+
+          {/* Error Message */}
+          {error && (
+            <View style={styles.errorContainer}>
+              <MaterialCommunityIcons name="alert-circle" size={16} color="#FF5252" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
 
           {/* Calculate button */}
           <Pressable
@@ -396,7 +400,7 @@ export default function BmiCalculatorScreen() {
           >
             <MaterialCommunityIcons
               name="calculator"
-              size={20}
+              size={18}
               color="#FFFFFF"
             />
             <Text style={[styles.calcButtonText, { fontFamily: theme.fontFamily.semiBold }]}>
@@ -407,9 +411,7 @@ export default function BmiCalculatorScreen() {
 
         {/* BMI Scale & Tips (if results) */}
         {result && (
-          <View style={[styles.settingsCard, { backgroundColor: theme.colors.surface, marginTop: 24 }]}>
-            <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>Visualized Range</Text>
-            
+          <View style={[styles.settingsCard, { backgroundColor: theme.colors.surface, marginTop: 24, paddingBottom: 32 }]}>
             <View style={styles.scaleContainer}>
               <View style={styles.scaleBar}>
                 {BMI_CATEGORIES.map((cat) => {
@@ -482,18 +484,18 @@ const styles = StyleSheet.create({
   featuredPlay: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, gap: 6 },
   featuredPlayText: { fontSize: 12, fontWeight: '700' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 28 },
-  settingsCard: { borderRadius: 24, padding: 20 },
-  settingsTitle: { fontSize: 18, fontWeight: '800', marginBottom: 20 },
-  settingLabel: { fontSize: 11, fontWeight: '800', marginBottom: 12, letterSpacing: 1 },
-  timerRow: { flexDirection: 'row', gap: 8 },
-  timerPill: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12 },
-  timerPillText: { fontSize: 13, fontWeight: '700' },
-  fieldGroup: { marginBottom: 16 },
-  fieldHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  ftInRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  ftInSep: { fontSize: 14 },
-  calcButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, marginTop: 20 },
-  calcButtonText: { color: '#FFFFFF', fontSize: 16 },
+  settingsCard: { borderRadius: 24, padding: 16 },
+  fieldGroup: { marginBottom: 12 },
+  fieldHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  settingLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  unitRow: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 8, padding: 2 },
+  unitPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  unitPillText: { fontSize: 9, fontWeight: '700' },
+  ftInRowCompact: { flexDirection: 'row', gap: 8 },
+  calcButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, marginTop: 16 },
+  calcButtonText: { color: '#FFFFFF', fontSize: 14 },
+  errorContainer: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, justifyContent: 'center' },
+  errorText: { color: '#FF5252', fontSize: 13, fontWeight: '600' },
   scaleContainer: { width: '100%', marginBottom: 20 },
   scaleBar: { flexDirection: 'row', height: 10, borderRadius: 5, overflow: 'hidden' },
   scaleSegment: { height: '100%' },

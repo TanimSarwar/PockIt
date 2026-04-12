@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -17,7 +17,9 @@ import { useSettingsStore } from '../store/settings';
 import { ErrorBoundary } from './ErrorBoundary';
 
 // Keep the splash screen visible while fonts load
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // If preventAutoHideAsync fails (e.g. splash already hidden), ignore it
+});
 
 function RootLayoutNav() {
   const { theme, isDark } = useTheme();
@@ -46,11 +48,8 @@ function RootLayoutNav() {
     return () => clearTimeout(timer);
   }, []);
 
-
-
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
-
       <Stack
         screenOptions={{
           headerShown: false,
@@ -83,22 +82,39 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
-  const onLayoutRootView = useCallback(async () => {
+  // Hide splash screen as soon as fonts are loaded (or errored)
+  // Using useEffect instead of onLayout because onLayout on SafeAreaProvider
+  // is unreliable on Android production builds and may never fire
+  // Also add a safety timeout to force-hide splash after 5 seconds
+  // in case fonts never load in production
+  const [isTimedOut, setIsTimedOut] = useState(false);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setIsTimedOut(true);
+      SplashScreen.hideAsync().catch(() => {});
+    }, 5000);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
     if (fontsLoaded || fontError) {
-      await SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) {
+  if (!fontsLoaded && !fontError && !isTimedOut) {
     return null;
   }
 
   return (
-    <ErrorBoundary>
-      <SafeAreaProvider onLayout={onLayoutRootView}>
-        <RootLayoutNav />
-      </SafeAreaProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <SafeAreaProvider>
+          <RootLayoutNav />
+        </SafeAreaProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
 
