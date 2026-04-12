@@ -112,7 +112,7 @@ export default function HomeScreen() {
   const { user, isLoggedIn } = useAuthStore();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { recentFeatures } = useFavoritesStore();
+  const { recentFeatures, pinnedFeatures, togglePin, addRecent } = useFavoritesStore();
 
   const floatAnim = useSharedValue(0);
   useEffect(() => {
@@ -268,7 +268,7 @@ export default function HomeScreen() {
   const categories = [
     { id: 'finance', title: 'Finance', desc: 'Secure & fast', icon: 'chart-line', badge: 'MANAGE', img: 'cat_finance.png' },
     { id: 'wellness', title: 'Wellness', desc: 'Active living', icon: 'heart-pulse', badge: 'IMPROVE', img: 'cat_wellness.png' },
-    { id: 'tools', title: 'Tools', desc: 'Daily utility', icon: 'toolbox-outline', badge: 'UTILITY', img: 'cat_tools.png' },
+    { id: 'tools', title: 'Tools', desc: 'Home utility', icon: 'toolbox-outline', badge: 'UTILITY', img: 'cat_tools.png' },
     { id: 'utilities', title: 'More', desc: 'Explore all', icon: 'apps', badge: 'EXPLORE', img: 'cat_utilities.png' },
   ];
 
@@ -388,7 +388,7 @@ export default function HomeScreen() {
                 <View style={[styles.quoteHeader, { justifyContent: 'space-between' }]}>
                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <MaterialCommunityIcons name="auto-fix" size={16} color={theme.colors.accent} />
-                      <Text style={[styles.quoteLabel, { color: theme.colors.textTertiary }]}>DAILY INSIGHT</Text>
+                      <Text style={[styles.quoteLabel, { color: theme.colors.textTertiary }]}>HOME INSIGHT</Text>
                    </View>
                    <Pressable onPress={shuffleQuotes} hitSlop={12} disabled={isRefreshingQuotes}>
                       <Animated.View style={refreshAnimatedStyle}>
@@ -482,19 +482,40 @@ export default function HomeScreen() {
               <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 12 }]}>Recent</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recentScroll}>
                 {displayRecents.map((item: any, i) => (
-                  <Pressable 
-                    key={i} 
-                    style={[styles.recentCard, { backgroundColor: theme.colors.surface }]}
-                    onPress={() => {
-                      lightImpact();
-                      if (item.route) router.push(item.route as any);
-                    }}
-                  >
-                    <View style={[styles.recentIconWrap, { backgroundColor: theme.colors.surfaceSecondary }]}>
-                      <MaterialCommunityIcons name={item.icon || 'star'} size={20} color={theme.colors.accent} />
-                    </View>
-                    <Text style={[styles.recentLabel, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Text>
-                  </Pressable>
+                  <View key={item.id} style={{ position: 'relative' }}>
+                    <Pressable 
+                      style={[styles.recentCard, { backgroundColor: theme.colors.surface }]}
+                      onPress={() => {
+                        lightImpact();
+                        if (item.route) {
+                          addRecent(item.id);
+                          router.push(item.route as any);
+                        }
+                      }}
+                    >
+                      <View style={[styles.recentIconWrap, { backgroundColor: theme.colors.surfaceSecondary }]}>
+                        <MaterialCommunityIcons name={item.icon || 'star'} size={20} color={theme.colors.accent} />
+                      </View>
+                      <Text style={[styles.recentLabel, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Text>
+                    </Pressable>
+                    
+                    {/* Pick Toggle */}
+                    <Pressable 
+                      onPress={() => { lightImpact(); togglePin(item.id); }}
+                      style={[
+                        styles.pickToggleSmall, 
+                        { 
+                          backgroundColor: pinnedFeatures.includes(item.id) ? theme.colors.accent : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)') 
+                        }
+                      ]}
+                    >
+                      <MaterialCommunityIcons 
+                        name={pinnedFeatures.includes(item.id) ? "star" : "star-outline"} 
+                        size={10} 
+                        color={pinnedFeatures.includes(item.id) ? "#FFFFFF" : theme.colors.textTertiary} 
+                      />
+                    </Pressable>
+                  </View>
                 ))}
               </ScrollView>
 
@@ -749,6 +770,17 @@ const styles = StyleSheet.create({
   },
   recentIconWrap: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   recentLabel: { fontSize: 12, fontWeight: '700' },
+  pickToggleSmall: {
+    position: 'absolute',
+    top: 6,
+    right: 18,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
   
   focusCard: { borderRadius: 30, padding: 24, flexDirection: 'row', alignItems: 'center', marginBottom: 40 },
   focusContent: { flex: 1, paddingRight: 16 },

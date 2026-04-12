@@ -10,6 +10,8 @@ import {
   Easing,
   Image,
   Alert,
+  Switch,
+  Linking,
 } from 'react-native';
 import { Tabs, useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,7 +34,8 @@ const GOOGLE_ANDROID_CLIENT_ID = '53251966571-l065qisocjrpbi78vhu0oki38hcn5noa.a
 // ─── Tab Config ──────────────────────────────────────────────────────────────
 
 const TABS = [
-  { name: 'index', title: 'Daily', icon: 'calendar-blank' },
+  { name: 'index', title: 'Home', icon: 'home-variant' },
+  { name: 'my-pick', title: 'My Pick', icon: 'star-outline' },
   { name: 'tools', title: 'Tools', icon: 'tools' },
   { name: 'finance', title: 'Finance', icon: 'cash-multiple' },
   { name: 'wellness', title: 'Wellness', icon: 'leaf' },
@@ -131,10 +134,38 @@ function GoogleAuthSection({ visible, onHide }: { visible: boolean, onHide: () =
 
   const fetchGoogleUser = async (token: string) => {
     try {
+      // 1. Fetch Basic Identity
       const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
+
+      // 2. Fetch Birthday from People API
+      let birthdayString = undefined;
+      try {
+        const peopleRes = await fetch('https://people.googleapis.com/v1/people/me?personFields=birthdays', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const peopleData = await peopleRes.json();
+
+        if (peopleData.birthdays && peopleData.birthdays.length > 0) {
+          // Look for either the primary birthday or the first one available
+          const bday = peopleData.birthdays.find((b: any) => b.metadata?.primary) || peopleData.birthdays[0];
+
+          if (bday.date) {
+            const { year, month, day } = bday.date;
+            // Year is required for age calculation, month/day for next birthday
+            if (month && day) {
+              const y = year || 2000; // Fallback to 2000 if year is hidden/private
+              birthdayString = `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              console.log('Fetched Birthday:', birthdayString);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('People API Error:', e);
+      }
+
       if (data?.email) {
         setUser({
           id: data.id,
@@ -143,6 +174,7 @@ function GoogleAuthSection({ visible, onHide }: { visible: boolean, onHide: () =
           givenName: data.given_name || '',
           familyName: data.family_name || '',
           picture: data.picture || null,
+          birthday: birthdayString,
         });
         mediumImpact();
       }
@@ -179,14 +211,14 @@ function GoogleAuthSection({ visible, onHide }: { visible: boolean, onHide: () =
                 )}
                 <View style={[styles.statusBadge, { backgroundColor: theme.colors.success }]} />
               </View>
-              
+
               <Text style={[styles.profileTitle, { color: theme.colors.text }]}>{user?.name}</Text>
               <Text style={[styles.profileSubtitle, { color: theme.colors.textSecondary }]}>{user?.email}</Text>
-              
+
               <View style={[styles.profileDivider, { backgroundColor: theme.colors.borderLight }]} />
-              
-              <Pressable 
-                onPress={() => { logout(); onHide(); mediumImpact(); }} 
+
+              <Pressable
+                onPress={() => { logout(); onHide(); mediumImpact(); }}
                 style={[styles.profileActionBtn, { backgroundColor: theme.colors.surfaceSecondary }]}
               >
                 <MaterialCommunityIcons name="logout" size={20} color={theme.colors.error} />
@@ -199,12 +231,12 @@ function GoogleAuthSection({ visible, onHide }: { visible: boolean, onHide: () =
               <View style={[styles.loginIconWrap, { backgroundColor: theme.colors.accentMuted }]}>
                 <MaterialCommunityIcons name="shield-account-outline" size={42} color={theme.colors.accent} />
               </View>
-              
+
               <Text style={[styles.profileTitle, { color: theme.colors.text }]}>Welcome back!</Text>
               <Text style={[styles.profileSubtitle, { color: theme.colors.textSecondary }]}>
                 Sign in to sync your tools and keep your data safe across devices.
               </Text>
-              
+
               {!isSecure ? (
                 <View style={[styles.infoBox, { backgroundColor: theme.colors.surfaceSecondary }]}>
                   <MaterialCommunityIcons name="lock-alert-outline" size={20} color={theme.colors.textTertiary} />
@@ -228,6 +260,128 @@ function GoogleAuthSection({ visible, onHide }: { visible: boolean, onHide: () =
   );
 }
 
+// ─── Side Drawer Component ────────────────────────────────────
+
+function SideDrawer({ visible, onHide }: { visible: boolean, onHide: () => void }) {
+  const { theme, hapticsEnabled, toggleHaptics } = useTheme();
+  const insets = useSafeAreaInsets();
+  const slideAnim = useRef(new Animated.Value(-300)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 350,
+          easing: Easing.out(Easing.back(0.8)),
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: -320,
+          duration: 300,
+          easing: Easing.in(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const handleLink = (url: string) => {
+    mediumImpact();
+    Linking.openURL(url);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onHide}>
+      <View style={styles.drawerOverlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onHide}>
+          <Animated.View style={[styles.drawerDimmer, { opacity: fadeAnim }]} />
+        </Pressable>
+
+        <Animated.View
+          style={[
+            styles.drawerContent,
+            {
+              backgroundColor: theme.colors.surface,
+              transform: [{ translateX: slideAnim }],
+              paddingTop: insets.top + 20,
+              paddingBottom: insets.bottom + 20,
+            }
+          ]}
+        >
+          <View style={styles.drawerHeader}>
+            <Text style={[styles.drawerTitle, { color: theme.colors.text }]}>Settings</Text>
+            <Pressable onPress={onHide} style={styles.drawerCloseBtn}>
+              <MaterialCommunityIcons name="close" size={24} color={theme.colors.textSecondary} />
+            </Pressable>
+          </View>
+
+          <View style={styles.drawerSection}>
+            <View style={[styles.settingsGroup, { backgroundColor: theme.colors.surfaceSecondary }]}>
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={[styles.settingIcon, { backgroundColor: theme.colors.background }]}>
+                    <MaterialCommunityIcons name="vibrate" size={20} color={theme.colors.accent} />
+                  </View>
+                  <Text style={[styles.settingLabel, { color: theme.colors.text }]}>Haptic Feedback</Text>
+                </View>
+                <Switch
+                  value={hapticsEnabled}
+                  onValueChange={() => { toggleHaptics(); lightImpact(); }}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                  thumbColor="#FFFFFF"
+                  ios_backgroundColor={theme.colors.border}
+                />
+              </View>
+              {/* Future settings can go here */}
+            </View>
+          </View>
+
+          <View style={styles.drawerSpacer} />
+
+          <View style={styles.developerCard}>
+            <View style={[styles.devDivider, { backgroundColor: theme.colors.borderLight }]} />
+            <Text style={[styles.developedBy, { color: theme.colors.textSecondary }]}>Developed by</Text>
+            <Text style={[styles.devName, { color: theme.colors.text }]}>Sarwar Hossain</Text>
+
+            <View style={styles.socialLinks}>
+              <Pressable
+                onPress={() => handleLink('https://github.com/TanimSarwar')}
+                style={[styles.socialBtn, { backgroundColor: theme.colors.surfaceSecondary }]}
+              >
+                <MaterialCommunityIcons name="github" size={20} color={theme.colors.text} />
+                <Text style={[styles.socialText, { color: theme.colors.text }]}>@TanimSarwar</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => handleLink('https://www.linkedin.com/in/sarwar-hossain-28ab19144/')}
+                style={[styles.socialBtn, { backgroundColor: '#0077B515' }]}
+              >
+                <MaterialCommunityIcons name="linkedin" size={20} color="#0077B5" />
+                <Text style={[styles.socialText, { color: '#0077B5' }]}>LinkedIn</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Global Header ──────────────────────────────────────────────────────────
 
 function GlobalHeader() {
@@ -238,6 +392,7 @@ function GlobalHeader() {
   const pathname = usePathname();
   const [showPicker, setShowPicker] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showDrawer, setShowDrawer] = useState(false);
 
   // Determine if we should show a back button based on path depth
   // e.g. /tools/random-generator vs /tools
@@ -273,7 +428,7 @@ function GlobalHeader() {
               <MaterialCommunityIcons name="arrow-left" size={24} color={theme.colors.text} />
             </Pressable>
           ) : (
-            <Pressable style={styles.headerIcon}>
+            <Pressable onPress={() => { setShowDrawer(true); lightImpact(); }} style={styles.headerIcon}>
               <MaterialCommunityIcons name="menu" size={24} color={theme.colors.text} />
             </Pressable>
           )}
@@ -312,6 +467,7 @@ function GlobalHeader() {
       </Modal>
 
       <GoogleAuthSection visible={showProfile} onHide={() => setShowProfile(false)} />
+      <SideDrawer visible={showDrawer} onHide={() => setShowDrawer(false)} />
     </>
   );
 }
@@ -463,4 +619,24 @@ const styles = StyleSheet.create({
   googleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#FFFFFF', width: '100%', paddingVertical: 15, borderRadius: 18, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
   googleIconCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F3F4', alignItems: 'center', justifyContent: 'center' },
   googleBtnText: { fontSize: 16, fontWeight: '700', color: '#3C4043' },
+  drawerOverlay: { flex: 1, flexDirection: 'row' },
+  drawerDimmer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  drawerContent: { width: 320, height: '100%', borderRightWidth: 1, borderRightColor: 'rgba(0,0,0,0.05)' },
+  drawerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 28, marginBottom: 40 },
+  drawerTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
+  drawerCloseBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.03)' },
+  drawerSection: { paddingHorizontal: 16 },
+  settingsGroup: { borderRadius: 28, padding: 8, overflow: 'hidden' },
+  settingItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12 },
+  settingInfo: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  settingIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  settingLabel: { fontSize: 17, fontWeight: '600', letterSpacing: -0.2 },
+  drawerSpacer: { flex: 1 },
+  developerCard: { padding: 32, alignItems: 'center' },
+  devDivider: { width: 30, height: 3, borderRadius: 1.5, marginBottom: 24, opacity: 0.3 },
+  developedBy: { fontSize: 11, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1.5, opacity: 0.6 },
+  devName: { fontSize: 22, fontWeight: '900', marginBottom: 28, letterSpacing: -0.5 },
+  socialLinks: { width: '100%', gap: 12 },
+  socialBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 16, borderRadius: 20 },
+  socialText: { fontSize: 15, fontWeight: '700', letterSpacing: -0.3 },
 });

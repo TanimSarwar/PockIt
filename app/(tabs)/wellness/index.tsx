@@ -5,9 +5,9 @@ import { TabScreen } from '../../../components/ui/TabScreen';
 import { featuresByCategory } from '../../../constants/features';
 
 const SECTIONS_IDS = [
+  { title: '✨ Comfort',     ids: ['sounds'] },
   { title: '🧘 Mindfulness', ids: ['meditation', 'breathing'] },
   { title: '📈 Daily Progress', ids: ['step-counter', 'water-tracker', 'sleep-tracker', 'bmi-calculator'] },
-  { title: '✨ Comfort',     ids: ['sounds'] },
 ];
 
 export default function WellnessScreen() {

@@ -17,8 +17,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.pockit.app',
-    config: {
-      googleMobileAdsAppId: 'ca-app-pub-3940256099942544~1458002511', // TODO: Replace with real AdMob App ID
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+      NSLocationWhenInUseUsageDescription: 'PockIt uses your location for weather, prayer times, and compass accuracy.',
     },
   },
   android: {
@@ -27,9 +28,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: '#6366F1',
     },
     package: 'com.pockit.app',
-    config: {
-      googleMobileAdsAppId: 'ca-app-pub-3940256099942544~3347511713', // TODO: Replace with real AdMob App ID
-    },
+    permissions: [
+      'ACCESS_COARSE_LOCATION',
+      'ACCESS_FINE_LOCATION',
+      'CAMERA',
+      'RECORD_AUDIO',
+      'MODIFY_AUDIO_SETTINGS'
+    ],
+    // @ts-ignore
+    edgeToEdgeEnabled: true,
+    // @ts-ignore
+    predictiveBackGestureEnabled: false,
   },
   web: {
     favicon: './assets/favicon.png',

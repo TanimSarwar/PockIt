@@ -11,10 +11,10 @@ export interface Feature {
 }
 
 export const features: Feature[] = [
-  // ─── Daily ────────────────────────────────────────────────────────────────
-  { id: 'weather', name: 'Weather', icon: 'weather-partly-cloudy', route: '/(tabs)', category: 'daily', description: 'Current weather and 7-day forecast' },
-  { id: 'quote', name: 'Daily Quote', icon: 'format-quote-open', route: '/(tabs)', category: 'daily', description: 'Inspirational quote of the day' },
-  { id: 'horoscope', name: 'Horoscope', icon: 'zodiac-gemini', route: '/(tabs)', category: 'daily', description: 'Your daily horoscope' },
+  // ─── Home ────────────────────────────────────────────────────────────────
+  { id: 'weather', name: 'Weather', icon: 'weather-partly-cloudy', route: '/(tabs)/tools/weather', category: 'home', description: 'Current weather and 14-day forecast' },
+  { id: 'quote', name: 'Daily Quote', icon: 'format-quote-open', route: '/(tabs)', category: 'home', description: 'Inspirational quote of the day' },
+  { id: 'horoscope', name: 'Horoscope', icon: 'zodiac-gemini', route: '/(tabs)', category: 'home', description: 'Your daily horoscope' },
 
   // ─── Tools ────────────────────────────────────────────────────────────────
   { id: 'unit-converter', name: 'Unit Converter', icon: 'swap-horizontal', route: '/(tabs)/tools/unit-converter', category: 'tools', description: 'Convert length, weight, temperature & more', layout: 'wide' },
@@ -27,6 +27,7 @@ export const features: Feature[] = [
   { id: 'tip-calculator', name: 'Tip Calculator', icon: 'cash-register', route: '/(tabs)/tools/tip-calculator', category: 'tools', description: 'Calculate tips and split bills', layout: 'regular' },
   { id: 'loan-calculator', name: 'Loan Calculator', icon: 'bank-outline', route: '/(tabs)/tools/loan-calculator', category: 'tools', description: 'Calculate loan EMI and interest', layout: 'regular' },
   { id: 'tax-estimator', name: 'Tax Estimator', icon: 'file-percent-outline', route: '/(tabs)/tools/tax-estimator', category: 'tools', description: 'Estimate your federal tax', layout: 'wide' },
+  { id: 'age-calculator', name: 'Age Calculator', icon: 'calendar-account', route: '/(tabs)/tools/age-calculator', category: 'tools', description: 'Calculate precise age and next birthday', layout: 'wide' },
 
   // ─── Finance ──────────────────────────────────────────────────────────────
   { id: 'budget', name: 'Budget Tracker', icon: 'wallet-outline', route: '/(tabs)/finance/budget', category: 'finance', description: 'Track income and expenses', layout: 'wide' },
@@ -39,7 +40,7 @@ export const features: Feature[] = [
   { id: 'step-counter', name: 'Step Counter', icon: 'shoe-print', route: '/(tabs)/wellness/step-counter', category: 'wellness', description: 'Count your daily steps', layout: 'wide' },
   { id: 'water-tracker', name: 'Water Tracker', icon: 'cup-water', route: '/(tabs)/wellness/water-tracker', category: 'wellness', description: 'Track daily water intake', layout: 'regular' },
   { id: 'sleep-tracker', name: 'Sleep Tracker', icon: 'power-sleep', route: '/(tabs)/wellness/sleep-tracker', category: 'wellness', description: 'Log and analyze your sleep', layout: 'regular' },
-  { id: 'bmi-calculator', name: 'BMI Calculator', icon: 'human-male-height', route: '/(tabs)/wellness/bmi-calculator', category: 'wellness', description: 'Calculate body mass index', layout: 'narrow' },
+  { id: 'bmi-calculator', name: 'BMI Calculator', icon: 'human-male-height', route: '/(tabs)/wellness/bmi-calculator', category: 'wellness', description: 'Calculate body mass index', layout: 'wide' },
   { id: 'sounds', name: 'Soothing Sounds', icon: 'music-note', route: '/(tabs)/wellness/sounds', category: 'wellness', description: 'Rain, ocean, forest & white noise', layout: 'wide' },
 
   // ─── Utilities ────────────────────────────────────────────────────────────
@@ -70,7 +71,7 @@ export interface CategoryInfo {
 }
 
 export const categories: CategoryInfo[] = [
-  { id: 'daily', label: 'Daily', icon: 'home-variant', description: 'Weather, quotes & horoscope' },
+  { id: 'daily', label: 'Home', icon: 'home-variant', description: 'Weather, quotes & horoscope' },
   { id: 'tools', label: 'Tools', icon: 'toolbox', description: 'Converters, generators & calculators' },
   { id: 'finance', label: 'Finance', icon: 'chart-line', description: 'Stocks, budget & calculator' },
   { id: 'wellness', label: 'Wellness', icon: 'heart-pulse', description: 'Sounds, breathing & trackers' },

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Platform, Dimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Platform, Dimensions, InteractionManager } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -45,18 +45,21 @@ interface TabScreenProps {
   features?: Feature[];
   sections?: Section[];
   onNavigate: (route: string, id: string) => void;
+  topActions?: React.ReactNode;
 }
 
-const Bubble = ({ size, top, left, delay, opacity = 0.15 }: { size: number, top: number, left: number, delay: number, opacity?: number }) => {
+const Bubble = ({ size, top, left, delay, active, opacity = 0.15 }: { size: number, top: number, left: number, delay: number, active: boolean, opacity?: number }) => {
   const move = useSharedValue(0);
 
   useEffect(() => {
-    move.value = withRepeat(
-      withTiming(1, { duration: 3000 + delay, }),
-      -1,
-      true
-    );
-  }, []);
+    if (active) {
+      move.value = withRepeat(
+        withTiming(1, { duration: 3000 + delay, }),
+        -1,
+        true
+      );
+    }
+  }, [active]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -84,11 +87,20 @@ const Bubble = ({ size, top, left, delay, opacity = 0.15 }: { size: number, top:
   );
 };
 
-export function TabScreen({ title, subtitle, icon, category, features, sections, onNavigate }: TabScreenProps) {
+export function TabScreen({ title, subtitle, icon, category, features, sections, onNavigate, topActions }: TabScreenProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { togglePin, pinnedFeatures } = useFavoritesStore();
   const [search, setSearch] = useState('');
+  const [isReady, setIsReady] = useState(Platform.OS === 'web');
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const task = InteractionManager.runAfterInteractions(() => {
+      setIsReady(true);
+    });
+    return () => task.cancel();
+  }, []);
 
   const allFeatures = features ?? sections?.flatMap((s) => s.features) ?? [];
   
@@ -100,12 +112,11 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
     : null;
 
   const renderFeature = (f: Feature, index: number) => {
-    const isFullWidth = f.layout === 'wide' || f.layout === 'narrow';
     return (
       <Animated.View 
         key={f.id} 
-        entering={FadeInDown.delay(index * 50).springify().damping(12)}
-        style={[styles.gridItem, { width: isFullWidth ? '100%' : '48%' }]}
+        entering={Platform.OS === 'web' ? FadeInDown.delay(index * 50).springify() : FadeInDown.delay(index * 30).duration(400)}
+        style={[styles.gridItem, { width: '48.5%' }]}
       >
         <FeatureCard
           icon={f.icon}
@@ -136,9 +147,9 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
             style={styles.headerCard}
           >
             {/* Decorative Bubbles */}
-            <Bubble size={120} top={-40} left={-30} delay={0} opacity={0.12} />
-            <Bubble size={80} top={20} left={width - 100} delay={500} opacity={0.08} />
-            <Bubble size={40} top={80} left={width / 2} delay={1000} opacity={0.1} />
+            <Bubble size={120} top={-40} left={-30} delay={0} opacity={0.12} active={isReady} />
+            <Bubble size={80} top={20} left={width - 100} delay={500} opacity={0.08} active={isReady} />
+            <Bubble size={40} top={80} left={width / 2} delay={1000} opacity={0.1} active={isReady} />
             
             <View style={styles.headerTop}>
               <View style={styles.headerTextGroup}>
@@ -171,6 +182,15 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
             />
           </Animated.View>
 
+          {topActions && (
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(500)}
+              style={styles.topActionsContainer}
+            >
+              {topActions}
+            </Animated.View>
+          )}
+
           {filteredFeatures ? (
             <View>
               <Text style={[styles.resultsLabel, { color: theme.colors.textSecondary }]}>
@@ -185,6 +205,11 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
                   <Text style={[styles.noResults, { color: theme.colors.textSecondary }]}>No tools match your search</Text>
                 </View>
               )}
+            </View>
+          ) : !isReady ? (
+            <View style={{ height: 400, alignItems: 'center', justifyContent: 'center' }}>
+               {/* Skeleton or Empty space to keep layout stable during transition */}
+               <View style={[styles.sectionCard, { width: '100%', height: 200, opacity: 0.1, backgroundColor: theme.colors.textTertiary }]} />
             </View>
           ) : sections ? (
             sections.map((section, sIndex) => (
@@ -322,6 +347,10 @@ const styles = StyleSheet.create({
   floatingSearchInput: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  topActionsContainer: {
+    marginBottom: 20,
+    alignItems: 'center',
   },
   emptyResults: {
     alignItems: 'center',

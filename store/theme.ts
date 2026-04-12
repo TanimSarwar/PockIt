@@ -24,11 +24,13 @@ export const ACCENT_OPTIONS: { name: ThemeName; hex: string; label: string; emoj
 interface ThemeState {
   mode:       ThemeMode;
   themeName:  ThemeName;
+  hapticsEnabled: boolean;
   // Actions
   toggleTheme:    () => void;
   setMode:        (mode: ThemeMode) => void;
   setAccentColor: (name: ThemeName) => void;  // legacy compat name
   setThemeName:   (name: ThemeName) => void;
+  toggleHaptics:  () => void;
 }
 
 export const useThemeStore = create<ThemeState>()(
@@ -36,6 +38,7 @@ export const useThemeStore = create<ThemeState>()(
     (set) => ({
       mode:      'system',
       themeName: 'violet',
+      hapticsEnabled: true,
 
       toggleTheme: () =>
         set((s) => ({ mode: s.mode === 'dark' ? 'light' : 'dark' })),
@@ -44,6 +47,7 @@ export const useThemeStore = create<ThemeState>()(
 
       setAccentColor: (name) => set({ themeName: name }),
       setThemeName:   (name) => set({ themeName: name }),
+      toggleHaptics: () => set((s) => ({ hapticsEnabled: !s.hapticsEnabled })),
     }),
     {
       name: 'pockit-theme-v2',
@@ -55,7 +59,7 @@ export const useThemeStore = create<ThemeState>()(
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useTheme() {
-  const { mode, themeName, toggleTheme, setMode, setAccentColor, setThemeName } =
+  const { mode, themeName, hapticsEnabled, toggleTheme, setMode, setAccentColor, setThemeName, toggleHaptics } =
     useThemeStore();
   const systemColorScheme = useColorScheme();
 
@@ -71,5 +75,5 @@ export function useTheme() {
     [resolvedMode, themeName],
   );
 
-  return { theme, isDark, toggleTheme, setAccentColor, setThemeName, mode, setMode, themeName };
+  return { theme, isDark, toggleTheme, setAccentColor, setThemeName, mode, setMode, themeName, hapticsEnabled, toggleHaptics };
 }

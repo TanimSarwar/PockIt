@@ -56,8 +56,9 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   }));
 
   React.useEffect(() => {
-    iconDraw.value = withDelay(100, withSpring(1, { damping: 12, stiffness: 150 }));
-    iconRotate.value = withDelay(100, withSpring(1, { damping: 10, stiffness: 120 }));
+    const delay = Platform.OS === 'web' ? 100 : 300;
+    iconDraw.value = withDelay(delay, withSpring(1, { damping: 12, stiffness: 150 }));
+    iconRotate.value = withDelay(delay, withSpring(1, { damping: 10, stiffness: 120 }));
   }, []);
 
   const iconAnimatedStyle = useAnimatedStyle(() => ({
@@ -113,13 +114,13 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
           styles.container,
           {
             backgroundColor: theme.colors.surface,
-            borderRadius: isNarrow ? 20 : 28,
-            paddingVertical: isNarrow ? 10 : 12,
-            paddingHorizontal: isNarrow ? 12 : 14,
-            flexDirection: isRegular ? 'column' : 'row',
+            borderRadius: 24,
+            paddingVertical: 16,
+            paddingHorizontal: 12,
+            flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: isRegular ? 'center' : 'flex-start',
-            minHeight: isWide ? 85 : isNarrow ? 60 : (description ? 120 : 100),
+            justifyContent: 'center',
+            minHeight: 110,
             borderWidth: 1,
             borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)',
             elevation: 2,
@@ -135,10 +136,9 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
           style={[
             styles.iconBox,
             {
-              width: isNarrow ? 36 : iconBoxSize,
-              height: isNarrow ? 36 : iconBoxSize,
-              marginRight: !isRegular ? 14 : 0,
-              marginBottom: isRegular ? 8 : 0,
+              width: iconBoxSize,
+              height: iconBoxSize,
+              marginBottom: 10,
             },
             iconAnimatedStyle
           ]}
@@ -150,12 +150,27 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
           />
         </Animated.View>
 
-        {/* Pin badge */}
-        {isPinned && (
-          <View style={[styles.pinBadge, { backgroundColor: theme.colors.accent }]}>
-            <MaterialCommunityIcons name="pin" size={10} color="#fff" />
-          </View>
-        )}
+        {/* Pick Toggle Button */}
+        <Pressable 
+          onPress={(e) => { 
+            e.stopPropagation(); 
+            lightImpact(); 
+            onLongPress?.(); 
+          }}
+          style={[
+            styles.pickBtn, 
+            { 
+              backgroundColor: isPinned ? theme.colors.accent : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'),
+              borderColor: isPinned ? theme.colors.accent : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
+            }
+          ]}
+        >
+          <MaterialCommunityIcons 
+            name={isPinned ? "star" : "star-outline"} 
+            size={isNarrow ? 12 : 14} 
+            color={isPinned ? "#FFFFFF" : theme.colors.textTertiary} 
+          />
+        </Pressable>
 
         {/* Text Container */}
         <View style={{ flex: 1, alignItems: isRegular ? 'center' : 'flex-start' }}>
@@ -164,31 +179,15 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
               styles.title,
               {
                 color: theme.colors.text,
-                fontSize: isNarrow ? 14 : 15,
+                fontSize: 14,
                 fontFamily: theme.fontFamily.bold,
                 textAlign: isRegular ? 'center' : 'left',
               },
             ]}
-            numberOfLines={1}
+            numberOfLines={2}
           >
             {title}
           </Text>
-          {description && !isNarrow && (
-            <Text
-              style={[
-                styles.description,
-                { 
-                  color: theme.colors.textSecondary, 
-                  fontFamily: theme.fontFamily.medium, 
-                  textAlign: isRegular ? 'center' : 'left',
-                  marginTop: 2,
-                },
-              ]}
-              numberOfLines={isWide ? 2 : 1}
-            >
-              {description}
-            </Text>
-          )}
         </View>
 
         {isNarrow && (
@@ -208,16 +207,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pinBadge: {
+  pickBtn: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    top: 10,
+    right: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 2,
+    zIndex: 10,
+    borderWidth: 1,
   },
   title: {
     lineHeight: 20,

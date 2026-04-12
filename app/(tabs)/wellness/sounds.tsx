@@ -170,9 +170,9 @@ function VolumeSlider({ volume, onChange, theme }: { volume: number; onChange: (
   return (
     <View style={vs.row}>
       <MaterialCommunityIcons name="volume-low" size={18} color={theme.colors.textTertiary} />
-      <View 
-        style={[vs.track, { backgroundColor: theme.colors.surfaceTertiary }]} 
-        onLayout={(e: LayoutChangeEvent) => { sliderWidth.current = e.nativeEvent.layout.width; }} 
+      <View
+        style={[vs.track, { backgroundColor: theme.colors.surfaceTertiary }]}
+        onLayout={(e: LayoutChangeEvent) => { sliderWidth.current = e.nativeEvent.layout.width; }}
         {...pan.panHandlers}
       >
         <Animated.View style={[vs.fill, { backgroundColor: theme.colors.accent }, fillStyle]} />
@@ -187,13 +187,13 @@ const vs = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   track: { flex: 1, height: 8, borderRadius: 4, position: 'relative', overflow: 'hidden' }, // Increased height slightly for better grab
   fill: { position: 'absolute', top: 0, left: 0, bottom: 0 },
-  thumb: { 
-    position: 'absolute', 
-    top: '50%', 
-    width: 24, 
-    height: 24, 
-    borderRadius: 12, 
-    marginLeft: -12, 
+  thumb: {
+    position: 'absolute',
+    top: '50%',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginLeft: -12,
     marginTop: -12,
     elevation: 4,
     shadowColor: '#000',
@@ -227,12 +227,12 @@ export default function SoundsScreen() {
   // but update audio hardware more frequently without blocking.
   const updateVolume = useCallback((val: number) => {
     volumeRef.current = val;
-    
+
     const now = Date.now();
     if (now - lastUpdateRef.current > 100) { // Limit hardware calls to 10Hz
       lastUpdateRef.current = now;
       setVolume(val); // Update state for UI syncing
-      
+
       Object.entries(playing).forEach(([id, isPlaying]) => {
         if (isPlaying && soundRefs.current[id]) {
           soundRefs.current[id].setVolumeAsync(val).catch(() => { });

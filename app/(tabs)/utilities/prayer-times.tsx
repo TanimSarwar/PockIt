@@ -204,7 +204,7 @@ export default function PrayerTimesScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
-      <ScreenHeader category="UTILITIES / DAILY" title="Prayer Times" />
+      <ScreenHeader category="HOME / PRAYER" title="Prayer Times" />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={theme.palette.gradient as any} style={styles.featuredCard}>

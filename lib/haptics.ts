@@ -1,42 +1,46 @@
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
+import { useThemeStore } from '../store/theme';
 
 /**
  * Lightweight haptic feedback wrappers.
- * No-ops on platforms that don't support haptics (web).
+ * No-ops on platforms that don't support haptics (web)
+ * or if haptics are disabled in settings.
  */
 
+const isHapticsEnabled = () => useThemeStore.getState().hapticsEnabled;
+
 export function lightImpact() {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web' || !isHapticsEnabled()) return;
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 }
 
 export function mediumImpact() {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web' || !isHapticsEnabled()) return;
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 }
 
 export function heavyImpact() {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web' || !isHapticsEnabled()) return;
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 }
 
 export function selectionFeedback() {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web' || !isHapticsEnabled()) return;
   Haptics.selectionAsync();
 }
 
 export function notificationSuccess() {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web' || !isHapticsEnabled()) return;
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 }
 
 export function notificationWarning() {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web' || !isHapticsEnabled()) return;
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 }
 
 export function notificationError() {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web' || !isHapticsEnabled()) return;
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 }

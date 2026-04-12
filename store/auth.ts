@@ -11,6 +11,7 @@ export interface UserProfile {
   givenName: string;
   familyName: string;
   picture: string | null;
+  birthday?: string; // YYYY-MM-DD
 }
 
 interface AuthState {
