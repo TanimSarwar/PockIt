@@ -22,8 +22,10 @@ import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { useTheme } from '../../store/theme';
 import { useAuthStore } from '../../store/auth';
+import { useFavoritesStore } from '../../store/favorites';
 import { lightImpact, mediumImpact } from '../../lib/haptics';
 import { ThemeName } from '../../constants/theme';
+import { GoogleSync } from '../../lib/google-sync';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -39,6 +41,7 @@ const TABS = [
   { name: 'tools', title: 'Tools', icon: 'tools' },
   { name: 'finance', title: 'Finance', icon: 'cash-multiple' },
   { name: 'wellness', title: 'Wellness', icon: 'leaf' },
+  { name: 'games', title: 'Play', icon: 'gamepad-variant' },
   { name: 'utilities', title: 'More', icon: 'dots-horizontal' },
 ] as const;
 
@@ -115,7 +118,7 @@ function GoogleAuthSection({ visible, onHide }: { visible: boolean, onHide: () =
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
       clientId: Platform.OS === 'android' ? GOOGLE_ANDROID_CLIENT_ID : GOOGLE_WEB_CLIENT_ID,
-      scopes: ['openid', 'profile', 'email'],
+      scopes: ['openid', 'profile', 'email', 'https://www.googleapis.com/auth/drive.appdata'],
       redirectUri: AuthSession.makeRedirectUri({ scheme: 'pockit' }),
       responseType: AuthSession.ResponseType.Token,
       usePKCE: false,
@@ -128,9 +131,61 @@ function GoogleAuthSection({ visible, onHide }: { visible: boolean, onHide: () =
 
   useEffect(() => {
     if (response?.type === 'success' && response.authentication?.accessToken) {
-      fetchGoogleUser(response.authentication.accessToken);
+      const token = response.authentication.accessToken;
+      fetchGoogleUser(token);
+      // Store token for sync operations
+      useAuthStore.getState().setToken(token);
+      
+      // Perform initial cloud sync
+      performCloudSync(token);
     }
   }, [response]);
+
+  const performCloudSync = async (token: string) => {
+    try {
+      const sync = new GoogleSync(token);
+      const fileId = await sync.findSyncFile();
+      
+      if (fileId) {
+        const cloudData = await sync.downloadData(fileId);
+        if (cloudData && cloudData.pinnedFeatures) {
+          console.log('[Sync] Found cloud picks:', cloudData.pinnedFeatures);
+          useFavoritesStore.getState().setPinnedFeatures(cloudData.pinnedFeatures);
+        }
+      } else {
+        // First time? Upload current local picks to cloud
+        console.log('[Sync] No cloud data found, uploading local picks...');
+        const localPicks = useFavoritesStore.getState().pinnedFeatures;
+        if (localPicks.length > 0) {
+          await sync.uploadData({
+            pinnedFeatures: localPicks,
+            lastUpdated: Date.now()
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[Sync] Error:', err);
+    }
+  };
+
+  // Auto-sync when picks change (if logged in)
+  const pinnedFeatures = useFavoritesStore(state => state.pinnedFeatures);
+  const accessToken = useAuthStore(state => state.accessToken);
+
+  useEffect(() => {
+    if (isLoggedIn && accessToken) {
+      const syncDelay = setTimeout(async () => {
+        const sync = new GoogleSync(accessToken);
+        await sync.uploadData({
+          pinnedFeatures,
+          lastUpdated: Date.now()
+        });
+        console.log('[Sync] Cloud updated with', pinnedFeatures.length, 'picks');
+      }, 2000); // 2 second debounce
+
+      return () => clearTimeout(syncDelay);
+    }
+  }, [pinnedFeatures, isLoggedIn, accessToken]);
 
   const fetchGoogleUser = async (token: string) => {
     try {
@@ -214,6 +269,11 @@ function GoogleAuthSection({ visible, onHide }: { visible: boolean, onHide: () =
 
               <Text style={[styles.profileTitle, { color: theme.colors.text }]}>{user?.name}</Text>
               <Text style={[styles.profileSubtitle, { color: theme.colors.textSecondary }]}>{user?.email}</Text>
+
+              <View style={[styles.syncStatus, { backgroundColor: theme.colors.accentMuted }]}>
+                <MaterialCommunityIcons name="cloud-check-outline" size={16} color={theme.colors.accent} />
+                <Text style={[styles.syncStatusText, { color: theme.colors.accent }]}>Cloud Sync Enabled</Text>
+              </View>
 
               <View style={[styles.profileDivider, { backgroundColor: theme.colors.borderLight }]} />
 
@@ -616,6 +676,8 @@ const styles = StyleSheet.create({
   loginIconWrap: { width: 90, height: 90, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   infoBox: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 18, width: '100%' },
   infoText: { flex: 1, fontSize: 12, lineHeight: 16, fontWeight: '500' },
+  syncStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginTop: 8, marginBottom: 4 },
+  syncStatusText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
   googleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#FFFFFF', width: '100%', paddingVertical: 15, borderRadius: 18, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
   googleIconCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F3F4', alignItems: 'center', justifyContent: 'center' },
   googleBtnText: { fontSize: 16, fontWeight: '700', color: '#3C4043' },

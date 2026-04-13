@@ -10,6 +10,7 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../../store/theme';
@@ -94,20 +95,44 @@ const CATEGORY_ICONS: Record<Category, string> = {
 
 export default function UnitConverterScreen() {
   const { theme } = useTheme();
+  const params = useLocalSearchParams();
   const [category, setCategory] = useState<Category>('Weight');
   const [fromUnit, setFromUnit] = useState('kg');
   const [toUnit, setToUnit] = useState('lb');
   const [inputValue, setInputValue] = useState('1');
   const bounceAnim = useRef(new Animated.Value(1)).current;
 
+  // Assistant Pre-fill Logic
+  useEffect(() => {
+    if (params.from && params.to) {
+      const from = params.from as string;
+      const to = params.to as string;
+      const val = params.value as string;
+
+      // Find category
+      for (const [cat, units] of Object.entries(CATEGORIES)) {
+        if (units[from] && units[to]) {
+          setCategory(cat as Category);
+          setFromUnit(from);
+          setToUnit(to);
+          if (val) setInputValue(val);
+          break;
+        }
+      }
+    }
+  }, [params]);
+
   const units = useMemo(() => CATEGORIES[category], [category]);
   const unitKeys = useMemo(() => Object.keys(units), [units]);
 
   useEffect(() => {
     const keys = Object.keys(CATEGORIES[category]);
-    // Try to find a sensible default if they change categories
-    setFromUnit(keys[0]);
-    setToUnit(keys.length > 1 ? keys[1] : keys[0]);
+    // Only reset units if the current ones aren't in the new category
+    // This prevents the Assistant's pre-filled units from being overridden
+    if (!CATEGORIES[category][fromUnit] || !CATEGORIES[category][toUnit]) {
+      setFromUnit(keys[0]);
+      setToUnit(keys.length > 1 ? keys[1] : keys[0]);
+    }
   }, [category]);
 
   const result = useMemo(() => {

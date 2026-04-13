@@ -10,6 +10,7 @@ interface FavoritesState {
   togglePin: (id: string) => void;
   addRecent: (id: string) => void;
   clearRecents: () => void;
+  setPinnedFeatures: (ids: string[]) => void;
 }
 
 // ─── Store ──────────────────────────────────────────────────────────────────
@@ -41,6 +42,8 @@ export const useFavoritesStore = create<FavoritesState>()(
         }),
 
       clearRecents: () => set({ recentFeatures: [] }),
+
+      setPinnedFeatures: (ids) => set({ pinnedFeatures: ids }),
     }),
     {
       name: 'pockit-favorites',

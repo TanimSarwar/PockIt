@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../../store/theme';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { PockItInput } from '../../../components/ui/Input';
@@ -27,6 +28,7 @@ const CURRENCIES = [
 
 export default function CurrencyConverterScreen() {
   const { theme } = useTheme();
+  const params = useLocalSearchParams();
   const [from, setFrom] = useState('USD');
   const [to, setTo] = useState('BDT');
   const [amount, setAmount] = useState('1');
@@ -34,6 +36,13 @@ export default function CurrencyConverterScreen() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('');
   const bounceAnim = useRef(new Animated.Value(1)).current;
+
+  // Assistant Pre-fill Logic
+  useEffect(() => {
+    if (params.from) setFrom(params.from as string);
+    if (params.to) setTo(params.to as string);
+    if (params.amount) setAmount(params.amount as string);
+  }, [params]);
 
   const loadRates = useCallback(async (base: string) => {
     setLoading(true);

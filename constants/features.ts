@@ -1,4 +1,4 @@
-export type FeatureCategory = 'daily' | 'tools' | 'finance' | 'wellness' | 'utilities';
+export type FeatureCategory = 'daily' | 'tools' | 'finance' | 'wellness' | 'utilities' | 'games';
 
 export interface Feature {
   id: string;
@@ -18,7 +18,7 @@ export const features: Feature[] = [
 
   // ─── Tools ────────────────────────────────────────────────────────────────
   { id: 'unit-converter', name: 'Unit Converter', icon: 'swap-horizontal', route: '/(tabs)/tools/unit-converter', category: 'tools', description: 'Convert length, weight, temperature & more', layout: 'regular' },
-  { id: 'barcode-scanner', name: 'Barcode Scanner', icon: 'barcode-scan', route: '/(tabs)/tools/barcode-scanner', category: 'tools', description: 'Scan barcodes and QR codes', layout: 'regular' },
+  { id: 'barcode-scanner', name: 'Universal Scanner', icon: 'barcode-scan', route: '/(tabs)/tools/barcode-scanner', category: 'tools', description: 'Barcode & QR code scanner', layout: 'regular' },
   { id: 'password-generator', name: 'Password Gen', icon: 'lock-outline', route: '/(tabs)/tools/password-generator', category: 'tools', description: 'Generate strong random passwords', layout: 'regular' },
   { id: 'currency-converter', name: 'Currency', icon: 'currency-usd', route: '/(tabs)/tools/currency-converter', category: 'tools', description: 'Live currency exchange rates', layout: 'regular' },
   { id: 'color-picker', name: 'Color Picker', icon: 'palette-outline', route: '/(tabs)/tools/color-picker', category: 'tools', description: 'HEX, RGB, HSL color converter', layout: 'regular' },
@@ -62,6 +62,11 @@ export const features: Feature[] = [
   { id: 'coin-flip', name: 'Coin Flip', icon: 'circle-half-full', route: '/(tabs)/utilities/coin-flip', category: 'utilities', description: 'Flip a coin with animation', layout: 'regular' },
   { id: 'compass', name: 'Compass', icon: 'compass-outline', route: '/(tabs)/utilities/compass', category: 'utilities', description: 'Digital direction compass', layout: 'regular' },
   { id: 'prayer-times', name: 'Prayer Times', icon: 'mosque', route: '/(tabs)/utilities/prayer-times', category: 'utilities', description: 'Daily Salah, sunrise & sunset times', layout: 'regular' },
+  
+  // ─── Games ──────────────────────────────────────────────────────────────
+  { id: 'snake', name: 'Classic Snake', icon: 'snake', route: '/(tabs)/games/snake', category: 'games', description: 'Eat apples and grow your snake', layout: 'regular' },
+  { id: '2048', name: '2048 Puzzle', icon: 'numeric-2-box', route: '/(tabs)/games/2048', category: 'games', description: 'Combine tiles to reach 2048', layout: 'regular' },
+  { id: 'memory', name: 'Memory Match', icon: 'cards-playing-outline', route: '/(tabs)/games/memory', category: 'games', description: 'Find matching card pairs', layout: 'regular' },
 ];
 
 export interface CategoryInfo {
@@ -77,6 +82,7 @@ export const categories: CategoryInfo[] = [
   { id: 'finance', label: 'Finance', icon: 'chart-line', description: 'Stocks, budget & calculator' },
   { id: 'wellness', label: 'Wellness', icon: 'heart-pulse', description: 'Sounds, breathing & trackers' },
   { id: 'utilities', label: 'Utilities', icon: 'apps', description: 'Timers, notes, dictionary & more' },
+  { id: 'games', label: 'Play', icon: 'gamepad-variant', description: 'Fun & addictive games' },
 ];
 
 export type GroupedFeatures = Record<FeatureCategory, Feature[]>;

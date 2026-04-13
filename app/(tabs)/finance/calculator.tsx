@@ -6,6 +6,7 @@ import {
   Pressable,
   Dimensions,
 } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Animated, {
   useSharedValue,
@@ -166,11 +167,17 @@ function PulsingMode({ label, onPress, theme }: { label: string; onPress: () => 
 
 export default function CalculatorScreen() {
   const { theme } = useTheme();
+  const params = useLocalSearchParams();
   const [display, setDisplay] = useState('0');
   const [expression, setExpression] = useState('');
   const [isScientific, setIsScientific] = useState(false);
   const [history, setHistory] = useState<{ expr: string; res: string }[]>([]);
   const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (params.display) setDisplay(params.display as string);
+    if (params.expression) setExpression(params.expression as string);
+  }, [params]);
 
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });

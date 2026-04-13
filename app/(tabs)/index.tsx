@@ -33,6 +33,8 @@ import { features } from '../../constants/features';
 import { fetchWeather, fetchQuotesList } from '../../lib/api';
 import { lightImpact, mediumImpact } from '../../lib/haptics';
 import { PockItInput } from '../../components/ui/Input';
+import { analyzeIntent, AssistantAction } from '../../lib/assistant';
+import { AssistantCard } from '../../components/AssistantCard';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MAX_WIDTH = 800; // Limit width on large desktop screens
@@ -131,6 +133,7 @@ export default function HomeScreen() {
   }));
 
   const [search, setSearch] = useState('');
+  const [assistantAction, setAssistantAction] = useState<AssistantAction | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [weather, setWeather] = useState<any>(null);
   const [locationName, setLocationName] = useState('Detecting...');
@@ -269,6 +272,7 @@ export default function HomeScreen() {
     { id: 'finance', title: 'Finance', desc: 'Secure & fast', icon: 'chart-line', badge: 'MANAGE', img: 'cat_finance.png' },
     { id: 'wellness', title: 'Wellness', desc: 'Active living', icon: 'heart-pulse', badge: 'IMPROVE', img: 'cat_wellness.png' },
     { id: 'tools', title: 'Tools', desc: 'Home utility', icon: 'toolbox-outline', badge: 'UTILITY', img: 'cat_tools.png' },
+    { id: 'games', title: 'Play', desc: 'Fun & arcade', icon: 'gamepad-variant', badge: 'FUN', img: 'cat_games.png' },
     { id: 'utilities', title: 'More', desc: 'Explore all', icon: 'apps', badge: 'EXPLORE', img: 'cat_utilities.png' },
   ];
 
@@ -290,6 +294,16 @@ export default function HomeScreen() {
       )
     : [];
 
+  const handleSearchChange = (text: string) => {
+    setSearch(text);
+    if (text.length > 2) {
+      const action = analyzeIntent(text);
+      setAssistantAction(action);
+    } else {
+      setAssistantAction(null);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background, alignItems: 'center' }]}>
       <SafeAreaView style={[styles.safe, { width: '100%', maxWidth: MAX_WIDTH }]} edges={['top']}>
@@ -300,7 +314,6 @@ export default function HomeScreen() {
         >
           {/* Premium Header */}
           <Animated.View 
-            entering={FadeInDown.duration(600).springify()}
             style={styles.headerWrapper}
           >
             <Pressable onPress={() => { mediumImpact(); loadData(); }}>
@@ -341,17 +354,18 @@ export default function HomeScreen() {
 
           {/* Floating Overlapping Search */}
           <Animated.View 
-            entering={FadeInDown.delay(200).duration(800)}
             style={styles.floatingSearchWrapper}
           >
             <PockItInput
-              placeholder="Search your tools..."
+              placeholder="Ask anything or search tools..."
               value={search}
-              onChangeText={setSearch}
-              icon={<MaterialCommunityIcons name="magnify" size={24} color={theme.colors.accent} />}
+              onChangeText={handleSearchChange}
+              icon={<MaterialCommunityIcons name="lightning-bolt" size={24} color={theme.colors.accent} />}
               containerStyle={styles.floatingSearchContainer}
               wrapperStyle={styles.floatingSearchWrapperStyle}
               inputStyle={styles.floatingSearchInput}
+              showClear
+              onClear={() => { setSearch(''); setAssistantAction(null); }}
             />
           </Animated.View>
 
@@ -359,6 +373,12 @@ export default function HomeScreen() {
 
           {search.length > 0 ? (
             <View style={styles.resultsPanel}>
+              {assistantAction && (
+                <AssistantCard 
+                  action={assistantAction} 
+                  onClose={() => setAssistantAction(null)} 
+                />
+              )}
               {filteredTools.map((f: any) => (
                 <Pressable 
                   key={f.id} 
@@ -440,42 +460,43 @@ export default function HomeScreen() {
                 </LinearGradient>
               </View>
 
-              {/* Animated 2x2 Categories Grid */}
               <View style={styles.catGrid}>
-                {categories.map((cat, i) => (
-                  <Animated.View 
-                    key={cat.id} 
-                    entering={FadeInDown.delay(i * 100).duration(800)}
-                    style={styles.catWrap}
-                  >
-                    <Pressable
-                      style={[styles.pathaoCard, { backgroundColor: theme.colors.surface }]}
-                      onPress={() => {
-                        lightImpact();
-                        router.push(`/(tabs)/${cat.id}` as any);
-                      }}
+                {categories.map((cat, i) => {
+                  const isLastOdd = i === categories.length - 1 && categories.length % 2 !== 0;
+                  return (
+                    <Animated.View 
+                      key={cat.id} 
+                      style={[styles.catWrap, isLastOdd && { width: '100%' }]}
                     >
-                      <View style={styles.pathaoInfo}>
-                        <Text style={[styles.pathaoTitle, { color: theme.colors.text }]}>{cat.title}</Text>
-                        <Text style={[styles.pathaoDesc, { color: theme.colors.textSecondary }]}>{cat.desc}</Text>
-                      </View>
-                      
-                      <Animated.View style={[styles.pathaoImgWrap, animatedIconStyle]}>
-                        <MaterialCommunityIcons 
-                          name={cat.icon as any} 
-                          size={60} 
-                          color={theme.colors.accent} 
-                          style={{ opacity: 0.07 }}
-                        />
-                      </Animated.View>
+                      <Pressable
+                        style={[styles.pathaoCard, { backgroundColor: theme.colors.surface }]}
+                        onPress={() => {
+                          lightImpact();
+                          router.push(`/(tabs)/${cat.id}` as any);
+                        }}
+                      >
+                        <View style={styles.pathaoInfo}>
+                          <Text style={[styles.pathaoTitle, { color: theme.colors.text }]}>{cat.title}</Text>
+                          <Text style={[styles.pathaoDesc, { color: theme.colors.textSecondary }]}>{cat.desc}</Text>
+                        </View>
+                        
+                        <Animated.View style={[styles.pathaoImgWrap, animatedIconStyle]}>
+                          <MaterialCommunityIcons 
+                            name={cat.icon as any} 
+                            size={60} 
+                            color={theme.colors.accent} 
+                            style={{ opacity: 0.07 }}
+                          />
+                        </Animated.View>
 
-                      <View style={[styles.pathaoBadge, { backgroundColor: theme.colors.surfaceSecondary }]}>
-                         <MaterialCommunityIcons name="check-decagram" size={10} color={theme.colors.accent} />
-                         <Text style={[styles.pathaoBadgeText, { color: theme.colors.textSecondary }]}>{cat.badge}</Text>
-                      </View>
-                    </Pressable>
-                  </Animated.View>
-                ))}
+                        <View style={[styles.pathaoBadge, { backgroundColor: theme.colors.surfaceSecondary }]}>
+                           <MaterialCommunityIcons name="check-decagram" size={10} color={theme.colors.accent} />
+                           <Text style={[styles.pathaoBadgeText, { color: theme.colors.textSecondary }]}>{cat.badge}</Text>
+                        </View>
+                      </Pressable>
+                    </Animated.View>
+                  );
+                })}
               </View>
 
               {/* Recent */}

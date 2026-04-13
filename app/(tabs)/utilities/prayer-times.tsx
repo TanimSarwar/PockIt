@@ -171,8 +171,9 @@ function MiniMap({ mosques, userLat, userLon }: { mosques: MosqueData[]; userLat
     grid: 'rgba(0,0,0,0.03)',
   };
 
-  const allLats = [userLat, ...mosques.map(m => m.lat)];
-  const allLons = [userLon, ...mosques.map(m => m.lon)];
+  const nearbyForMap = mosques.slice(0, 15);
+  const allLats = [userLat, ...nearbyForMap.map(m => m.lat)];
+  const allLons = [userLon, ...nearbyForMap.map(m => m.lon)];
   const minLat = Math.min(...allLats);
   const maxLat = Math.max(...allLats);
   const minLon = Math.min(...allLons);
@@ -232,7 +233,7 @@ function MiniMap({ mosques, userLat, userLon }: { mosques: MosqueData[]; userLat
         ))}
 
         {/* Mosque Markers (Google Style Pins) */}
-        {mosques.map((m, i) => {
+        {nearbyForMap.map((m, i) => {
           const mx = toX(m.lon);
           const my = toY(m.lat);
           return (
@@ -277,6 +278,7 @@ function NearbyMosques({ lat, lon }: { lat: number; lon: number }) {
   const [mosques, setMosques] = useState<MosqueData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const radius = 4000; // Search radius in meters
   const [expanded, setExpanded] = useState(false);
 
   const fetchMosques = useCallback(async () => {
@@ -286,8 +288,7 @@ function NearbyMosques({ lat, lon }: { lat: number; lon: number }) {
       setLoading(true);
       setError(null);
 
-      const radius = 3500;
-      const query = `[out:json][timeout:15];(node["amenity"="place_of_worship"]["religion"="muslim"](around:${radius},${lat},${lon});way["amenity"="place_of_worship"]["religion"="muslim"](around:${radius},${lat},${lon});node["amenity"="mosque"](around:${radius},${lat},${lon}););out center body 12;`;
+      const query = `[out:json][timeout:25];(nwr["amenity"~"mosque|place_of_worship"]["religion"="muslim"](around:${radius},${lat},${lon});nwr["amenity"="mosque"](around:${radius},${lat},${lon});nwr["building"="mosque"](around:${radius},${lat},${lon}););out center body 60;`;
       
       // Try primary server with fallback mirror
       const servers = [
@@ -367,7 +368,7 @@ function NearbyMosques({ lat, lon }: { lat: number; lon: number }) {
             <Text style={[styles.mosquesSectionTitle, { color: theme.colors.text }]}>Nearby Mosques</Text>
             {mosques.length > 0 && (
               <Text style={[styles.mosquesCount, { color: theme.colors.textTertiary }]}>
-                {mosques.length} found within 3km
+                {mosques.length} found within {formatDistance(radius)}
               </Text>
             )}
           </View>
@@ -393,7 +394,7 @@ function NearbyMosques({ lat, lon }: { lat: number; lon: number }) {
       ) : mosques.length === 0 ? (
         <View style={[styles.mosquesEmpty, { backgroundColor: theme.colors.surface }]}>
           <MaterialCommunityIcons name="map-marker-off-outline" size={32} color={theme.colors.textTertiary} />
-          <Text style={[styles.mosquesEmptyText, { color: theme.colors.textSecondary }]}>No mosques found within 3km</Text>
+          <Text style={[styles.mosquesEmptyText, { color: theme.colors.textSecondary }]}>No mosques found within {formatDistance(radius)}</Text>
         </View>
       ) : (
         <>
@@ -479,7 +480,7 @@ export default function PrayerTimesScreen() {
             setLoading(false);
             return;
           }
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
           latitude = loc.coords.latitude;
           longitude = loc.coords.longitude;
           const rev = await Location.reverseGeocodeAsync({ latitude, longitude });
@@ -505,7 +506,7 @@ export default function PrayerTimesScreen() {
   }, [coords]);
 
   useEffect(() => {
-    fetchTimes();
+    fetchTimes(true);
   }, []);
 
   const getNextPrayer = useMemo(() => {

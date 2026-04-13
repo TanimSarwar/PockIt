@@ -56,9 +56,9 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   }));
 
   React.useEffect(() => {
-    const delay = Platform.OS === 'web' ? 100 : 300;
-    iconDraw.value = withDelay(delay, withSpring(1, { damping: 12, stiffness: 150 }));
-    iconRotate.value = withDelay(delay, withSpring(1, { damping: 10, stiffness: 120 }));
+    // Set to 1 immediately for instant display without animation
+    iconDraw.value = 1;
+    iconRotate.value = 1;
   }, []);
 
   const iconAnimatedStyle = useAnimatedStyle(() => ({

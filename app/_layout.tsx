@@ -41,9 +41,8 @@ function RootLayoutNav() {
   }, [hasCompletedOnboarding, segments, isReady]);
 
   useEffect(() => {
-    // Small delay to let navigation mount
-    const timer = setTimeout(() => setIsReady(true), 100);
-    return () => clearTimeout(timer);
+    // We can show content immediately now that we've optimized animations
+    setIsReady(true);
   }, []);
 
   return (
@@ -54,7 +53,7 @@ function RootLayoutNav() {
           contentStyle: { 
             backgroundColor: theme.colors.background 
           },
-          animation: 'fade',
+          animation: 'none',
         }}
       >
         <Stack.Screen name="(tabs)" />

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../../store/theme';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Input, Card } from '../../../components/ui';
@@ -9,11 +10,17 @@ const TIP_PRESETS = [10, 15, 18, 20, 25];
 
 export default function TipCalculatorScreen() {
   const { theme } = useTheme();
+  const params = useLocalSearchParams();
   const [bill, setBill] = useState('');
   const [tipPercent, setTipPercent] = useState(18);
   const [customTip, setCustomTip] = useState('');
   const [people, setPeople] = useState('1');
   const [roundUp, setRoundUp] = useState(false);
+
+  React.useEffect(() => {
+    if (params.billAmount) setBill(params.billAmount as string);
+    if (params.splitCount) setPeople(params.splitCount as string);
+  }, [params]);
 
   const billAmount = parseFloat(bill) || 0;
   const activeTip = customTip ? parseFloat(customTip) || 0 : tipPercent;

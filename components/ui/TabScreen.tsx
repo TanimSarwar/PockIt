@@ -95,11 +95,8 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
   const [isReady, setIsReady] = useState(Platform.OS === 'web');
 
   useEffect(() => {
-    if (Platform.OS === 'web') return;
-    const task = InteractionManager.runAfterInteractions(() => {
-      setIsReady(true);
-    });
-    return () => task.cancel();
+    // Show content immediately for a more seamless transition
+    setIsReady(true);
   }, []);
 
   const allFeatures = features ?? sections?.flatMap((s) => s.features) ?? [];
@@ -140,7 +137,6 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
     return (
       <Animated.View 
         key={f.id} 
-        entering={Platform.OS === 'web' ? FadeInDown.delay(index * 50).springify() : FadeInDown.delay(index * 30).duration(400)}
         style={[styles.gridItem, { width: itemWidth }]}
       >
         <FeatureCard
@@ -162,7 +158,6 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Header Card */}
         <Animated.View 
-          entering={FadeInDown.duration(600).springify()}
           style={styles.headerWrapper}
         >
           <LinearGradient
@@ -193,7 +188,6 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
         <View style={styles.body}>
           {/* Floating Overlapping Search Bar */}
           <Animated.View 
-            entering={FadeInDown.delay(200).duration(500)}
             style={styles.floatingSearchWrapper}
           >
             <PockItInput 
@@ -209,7 +203,6 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
 
           {topActions && (
             <Animated.View 
-              entering={FadeInDown.delay(300).duration(500)}
               style={styles.topActionsContainer}
             >
               {topActions}
@@ -230,11 +223,6 @@ export function TabScreen({ title, subtitle, icon, category, features, sections,
                   <Text style={[styles.noResults, { color: theme.colors.textSecondary }]}>No tools match your search</Text>
                 </View>
               )}
-            </View>
-          ) : !isReady ? (
-            <View style={{ height: 400, alignItems: 'center', justifyContent: 'center' }}>
-               {/* Skeleton or Empty space to keep layout stable during transition */}
-               <View style={[styles.sectionCard, { width: '100%', height: 200, opacity: 0.1, backgroundColor: theme.colors.textTertiary }]} />
             </View>
           ) : sections ? (
             sections.map((section, sIndex) => (
