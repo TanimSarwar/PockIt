@@ -20,6 +20,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
 import { useTheme } from '../../store/theme';
 import { useAuthStore } from '../../store/auth';
 import { useFavoritesStore } from '../../store/favorites';
@@ -41,7 +42,6 @@ const TABS = [
   { name: 'tools', title: 'Tools', icon: 'tools' },
   { name: 'finance', title: 'Finance', icon: 'cash-multiple' },
   { name: 'wellness', title: 'Wellness', icon: 'leaf' },
-  { name: 'games', title: 'Play', icon: 'gamepad-variant' },
   { name: 'utilities', title: 'More', icon: 'dots-horizontal' },
 ] as const;
 
@@ -113,33 +113,71 @@ function GoogleAuthSection({ visible, onHide }: { visible: boolean, onHide: () =
   const { user, isLoggedIn, setUser, logout } = useAuthStore();
   const isSecure = Platform.OS !== 'web' || (typeof window !== 'undefined' && window.isSecureContext);
 
-  // We only call the hook if we are in a potentially secure context to avoid crashes
-  // Hooks must be called in the same order, so we always call it but handle the result
+  // 1. Detect environment
+  const isExpoGo = Constants.appOwnership === 'expo';
+  
+  // 2. Determine Redirect URI
+  // We force the Expo Proxy for Expo Go to avoid the 'exp://' error.
+  const redirectUri = isExpoGo 
+    ? 'https://auth.expo.io/@tanimsarwar/pockit' 
+    : AuthSession.makeRedirectUri({ scheme: 'pockit' });
+
+  // 3. Determine Client ID
+  // When using the Proxy, we MUST use the Web Client ID.
+  const clientId = isExpoGo ? GOOGLE_WEB_CLIENT_ID : (Platform.OS === 'android' ? GOOGLE_ANDROID_CLIENT_ID : GOOGLE_WEB_CLIENT_ID);
+
+  // Use Authorization Code + PKCE flow.
+  const discovery = {
+    authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenEndpoint: 'https://oauth2.googleapis.com/token',
+    userInfoEndpoint: 'https://www.googleapis.com/oauth2/v2/userinfo',
+  };
+
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
-      clientId: Platform.OS === 'android' ? GOOGLE_ANDROID_CLIENT_ID : GOOGLE_WEB_CLIENT_ID,
+      clientId,
       scopes: ['openid', 'profile', 'email', 'https://www.googleapis.com/auth/drive.appdata'],
-      redirectUri: AuthSession.makeRedirectUri({ scheme: 'pockit' }),
-      responseType: AuthSession.ResponseType.Token,
-      usePKCE: false,
+      redirectUri,
+      responseType: AuthSession.ResponseType.Code,
+      // Only use PKCE on web if we have a secure context (localhost/https),
+      // otherwise expo-crypto will throw an error.
+      usePKCE: isSecure,
     },
-    {
-      authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-      userInfoEndpoint: 'https://www.googleapis.com/oauth2/v2/userinfo',
-    }
+    discovery,
   );
 
   useEffect(() => {
-    if (response?.type === 'success' && response.authentication?.accessToken) {
-      const token = response.authentication.accessToken;
-      fetchGoogleUser(token);
-      // Store token for sync operations
-      useAuthStore.getState().setToken(token);
-      
-      // Perform initial cloud sync
-      performCloudSync(token);
+    if (response?.type === 'success' && response.params?.code) {
+      // Exchange the authorization code for an access token
+      exchangeCodeForToken(response.params.code);
     }
   }, [response]);
+
+  const exchangeCodeForToken = async (code: string) => {
+    try {
+      const tokenResult = await AuthSession.exchangeCodeAsync(
+        {
+          clientId,
+          code,
+          redirectUri,
+          extraParams: {
+            code_verifier: request?.codeVerifier || '',
+          },
+        },
+        { tokenEndpoint: discovery.tokenEndpoint },
+      );
+
+      if (tokenResult.accessToken) {
+        const token = tokenResult.accessToken;
+        fetchGoogleUser(token);
+        useAuthStore.getState().setToken(token);
+        performCloudSync(token);
+      }
+    } catch (err) {
+      console.error('Token exchange error:', err);
+      Alert.alert('Sign-In Error', 'Failed to complete sign-in. Please try again.');
+    }
+  };
 
   const performCloudSync = async (token: string) => {
     try {

@@ -146,26 +146,8 @@ const INTENT_PATTERNS = [
     ],
     extract: () => ({}),
   },
-  {
-    intent: 'GAMES',
-    route: '/(tabs)/games',
-    patterns: [
-      /play\s*(?:a\s*)?game/i,
-      /open\s*games/i,
-      /arcade/i,
-    ],
-    extract: () => ({}),
-  },
-  {
-    intent: 'SNAKE_GAME',
-    route: '/(tabs)/games/snake',
-    patterns: [
-      /snake/i,
-      /play\s*snake/i,
-    ],
-    extract: () => ({}),
-  },
 ];
+
 
 export function analyzeIntent(input: string): AssistantAction | null {
   const text = input.trim();

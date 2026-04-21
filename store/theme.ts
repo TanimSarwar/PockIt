@@ -36,7 +36,7 @@ interface ThemeState {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      mode:      'system',
+      mode:      'light',
       themeName: 'violet',
       hapticsEnabled: true,
 

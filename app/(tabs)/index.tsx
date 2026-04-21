@@ -272,7 +272,6 @@ export default function HomeScreen() {
     { id: 'finance', title: 'Finance', desc: 'Secure & fast', icon: 'chart-line', badge: 'MANAGE', img: 'cat_finance.png' },
     { id: 'wellness', title: 'Wellness', desc: 'Active living', icon: 'heart-pulse', badge: 'IMPROVE', img: 'cat_wellness.png' },
     { id: 'tools', title: 'Tools', desc: 'Home utility', icon: 'toolbox-outline', badge: 'UTILITY', img: 'cat_tools.png' },
-    { id: 'games', title: 'Play', desc: 'Fun & arcade', icon: 'gamepad-variant', badge: 'FUN', img: 'cat_games.png' },
     { id: 'utilities', title: 'More', desc: 'Explore all', icon: 'apps', badge: 'EXPLORE', img: 'cat_utilities.png' },
   ];
 

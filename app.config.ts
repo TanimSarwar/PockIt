@@ -7,7 +7,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
-  userInterfaceStyle: 'automatic',
+  userInterfaceStyle: 'light',
   newArchEnabled: false,
   scheme: 'pockit',
   splash: {
@@ -60,7 +60,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     eas: {
-      projectId: '37d3ed7b-edcc-4fae-981c-14c8d2e61717',
+      projectId: 'c1badf71-96ef-4b10-bd4d-82722591460d',
     },
   },
 });

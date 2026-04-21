@@ -1,4 +1,4 @@
-export type FeatureCategory = 'daily' | 'tools' | 'finance' | 'wellness' | 'utilities' | 'games';
+export type FeatureCategory = 'daily' | 'tools' | 'finance' | 'wellness' | 'utilities';
 
 export interface Feature {
   id: string;
@@ -62,11 +62,8 @@ export const features: Feature[] = [
   { id: 'coin-flip', name: 'Coin Flip', icon: 'circle-half-full', route: '/(tabs)/utilities/coin-flip', category: 'utilities', description: 'Flip a coin with animation', layout: 'regular' },
   { id: 'compass', name: 'Compass', icon: 'compass-outline', route: '/(tabs)/utilities/compass', category: 'utilities', description: 'Digital direction compass', layout: 'regular' },
   { id: 'prayer-times', name: 'Prayer Times', icon: 'mosque', route: '/(tabs)/utilities/prayer-times', category: 'utilities', description: 'Daily Salah, sunrise & sunset times', layout: 'regular' },
+  { id: 'event-planner', name: 'Event Planner', icon: 'calendar-heart', route: '/(tabs)/utilities/event-planner', category: 'utilities', description: 'Plan events and get heart-warming reminders', layout: 'regular' },
   
-  // ─── Games ──────────────────────────────────────────────────────────────
-  { id: 'snake', name: 'Classic Snake', icon: 'snake', route: '/(tabs)/games/snake', category: 'games', description: 'Eat apples and grow your snake', layout: 'regular' },
-  { id: '2048', name: '2048 Puzzle', icon: 'numeric-2-box', route: '/(tabs)/games/2048', category: 'games', description: 'Combine tiles to reach 2048', layout: 'regular' },
-  { id: 'memory', name: 'Memory Match', icon: 'cards-playing-outline', route: '/(tabs)/games/memory', category: 'games', description: 'Find matching card pairs', layout: 'regular' },
 ];
 
 export interface CategoryInfo {
@@ -82,7 +79,7 @@ export const categories: CategoryInfo[] = [
   { id: 'finance', label: 'Finance', icon: 'chart-line', description: 'Stocks, budget & calculator' },
   { id: 'wellness', label: 'Wellness', icon: 'heart-pulse', description: 'Sounds, breathing & trackers' },
   { id: 'utilities', label: 'Utilities', icon: 'apps', description: 'Timers, notes, dictionary & more' },
-  { id: 'games', label: 'Play', icon: 'gamepad-variant', description: 'Fun & addictive games' },
+
 ];
 
 export type GroupedFeatures = Record<FeatureCategory, Feature[]>;

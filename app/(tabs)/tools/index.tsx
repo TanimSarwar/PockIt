@@ -7,7 +7,8 @@ import { featuresByCategory } from '../../../constants/features';
 const SECTIONS_IDS = [
   { title: '🔄 Converters', ids: ['unit-converter', 'currency-converter', 'number-base'] },
   { title: '🛡️ Generators', ids: ['password-generator', 'qr-generator'] },
-  { title: '🛠 Handy', ids: ['barcode-scanner', 'color-picker', 'tip-calculator', 'age-calculator'] },
+  { title: '🛠 Handy', ids: ['barcode-scanner', 'color-picker', 'tip-calculator'] },
+  { title: '💰 Finance Tools', ids: ['loan-calculator', 'tax-estimator'] },
 ];
 
 export default function ToolsScreen() {

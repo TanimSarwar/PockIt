@@ -5,8 +5,9 @@ import { TabScreen } from '../../../components/ui/TabScreen';
 import { featuresByCategory } from '../../../constants/features';
 
 const SECTIONS_IDS = [
+  { title: '🛠 Handy Tools', ids: ['weather', 'age-calculator'] },
   { title: '⏱ Time', ids: ['stopwatch', 'countdown-timer', 'pomodoro', 'world-clock', 'timezone-converter'] },
-  { title: '📋 Productivity', ids: ['todo-list', 'habit-tracker', 'notes', 'flashcards'] },
+  { title: '📋 Productivity', ids: ['todo-list', 'habit-tracker', 'event-planner', 'notes', 'flashcards'] },
   { title: '📖 Reference', ids: ['dictionary', 'translator', 'country-info', 'compass', 'prayer-times'] },
   { title: '🎲 Fun', ids: ['random-generator', 'coin-flip', 'drawing-pad'] },
 ];
@@ -14,7 +15,10 @@ const SECTIONS_IDS = [
 export default function UtilitiesScreen() {
   const router = useRouter();
   const { addRecent } = useFavoritesStore();
-  const allFeatures = featuresByCategory.utilities ?? [];
+  const utilitiesFeatures = featuresByCategory.utilities ?? [];
+  const dailyFeatures = featuresByCategory.daily ?? [];
+  const toolsFeatures = featuresByCategory.tools ?? [];
+  const allFeatures = [...utilitiesFeatures, ...dailyFeatures, ...toolsFeatures];
 
   const sections = SECTIONS_IDS.map((s) => ({
     title: s.title,

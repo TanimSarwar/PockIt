@@ -15,6 +15,7 @@ import {
 import { useTheme } from '../store/theme';
 import { useSettingsStore } from '../store/settings';
 import { ErrorBoundary } from './ErrorBoundary';
+import { configureNotifications, setupChannels } from '../lib/notifications';
 
 // Keep the splash screen visible while fonts load
 SplashScreen.preventAutoHideAsync();
@@ -41,6 +42,10 @@ function RootLayoutNav() {
   }, [hasCompletedOnboarding, segments, isReady]);
 
   useEffect(() => {
+    // Initialize notifications
+    configureNotifications();
+    setupChannels();
+    
     // We can show content immediately now that we've optimized animations
     setIsReady(true);
   }, []);
