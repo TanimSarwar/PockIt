@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,16 +15,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Speech from 'expo-speech';
 
 import * as Location from 'expo-location';
 import Animated, { 
   FadeInDown,
+  FadeInRight,
   useAnimatedStyle,
   withRepeat,
   withSequence,
   withTiming,
   useSharedValue,
   interpolate,
+  withSpring,
 } from 'react-native-reanimated';
 import { useTheme } from '../../store/theme';
 import { useFavoritesStore } from '../../store/favorites';
@@ -37,75 +40,58 @@ import { analyzeIntent, AssistantAction } from '../../lib/assistant';
 import { AssistantCard } from '../../components/AssistantCard';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const MAX_WIDTH = 800; // Limit width on large desktop screens
-const IS_LARGE_WEB = Platform.OS === 'web' && SCREEN_WIDTH > MAX_WIDTH;
-const CONTENT_WIDTH = IS_LARGE_WEB ? MAX_WIDTH : SCREEN_WIDTH;
+const MAX_WIDTH = 800;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getGreeting() {
   const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
+  if (h < 12) return 'Rise and shine';
   if (h < 17) return 'Good afternoon';
   if (h < 21) return 'Good evening';
-  return 'Good night';
+  return 'Stable Night';
 }
 
-const WEATHER_ICONS: Record<number, { icon: string; label: string }> = {
-  0: { icon: 'weather-sunny', label: 'Clear' },
-  1: { icon: 'weather-partly-cloudy', label: 'Mainly clear' },
-  2: { icon: 'weather-partly-cloudy', label: 'Partly cloudy' },
-  3: { icon: 'weather-cloudy', label: 'Overcast' },
-  45: { icon: 'weather-fog', label: 'Foggy' },
-  51: { icon: 'weather-rainy', label: 'Drizzle' },
-  61: { icon: 'weather-rainy', label: 'Rain' },
-  71: { icon: 'weather-snowy', label: 'Snow' },
-  95: { icon: 'weather-lightning', label: 'Thunderstorm' },
+const WEATHER_THEMES: Record<number, { icon: string; label: string; colors: string[] }> = {
+  0: { icon: 'weather-sunny', label: 'Sunny Day', colors: ['#FF8C00', '#FFA500'] },
+  1: { icon: 'weather-partly-cloudy', label: 'Mostly Clear', colors: ['#4FACFE', '#00F2FE'] },
+  2: { icon: 'weather-partly-cloudy', label: 'Partly Cloudy', colors: ['#4FACFE', '#00F2FE'] },
+  3: { icon: 'weather-cloudy', label: 'Cloudy', colors: ['#8E9EAB', '#2F3F4F'] },
+  45: { icon: 'weather-fog', label: 'Foggy', colors: ['#757F9A', '#D7DDE8'] },
+  51: { icon: 'weather-rainy', label: 'Drizzle', colors: ['#4B6CB7', '#182848'] },
+  61: { icon: 'weather-rainy', label: 'Rainy', colors: ['#4B6CB7', '#182848'] },
+  71: { icon: 'weather-snowy', label: 'Snowy', colors: ['#E6E9F0', '#EEF1F5'] },
+  95: { icon: 'weather-lightning', label: 'Stormy', colors: ['#0F2027', '#203A43', '#2C5364'] },
 };
 
-function getWeatherMeta(code: number) {
-  return WEATHER_ICONS[code] ?? { icon: 'weather-partly-cloudy', label: 'Weather' };
+function getWeatherTheme(code: number) {
+  return WEATHER_THEMES[code] ?? { icon: 'weather-partly-cloudy', label: 'PockIt', colors: ['#6366F1', '#A855F7'] };
 }
 
-const Bubble = ({ size, top, left, delay, opacity = 0.15 }: { size: number, top: number, left: number, delay: number, opacity?: number }) => {
-  const move = useSharedValue(0);
+// ─── Components ──────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    move.value = withRepeat(
-      withTiming(1, { duration: 3000 + delay }),
-      -1,
-      true
-    );
-  }, [delay, move]);
-
+const QuickOrb = ({ icon, label, route, color }: any) => {
+  const router = useRouter();
+  const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: interpolate(move.value, [0, 1], [0, -15]) },
-      { translateX: interpolate(move.value, [0, 1], [0, 10]) },
-    ],
+    transform: [{ scale: scale.value }],
   }));
 
+  const handlePress = () => {
+    lightImpact();
+    scale.value = withSequence(withTiming(1.2, { duration: 100 }), withSpring(1));
+    router.push(route as any);
+  };
+
   return (
-    <Animated.View 
-      style={[
-        { 
-          position: 'absolute',
-          width: size, 
-          height: size, 
-          borderRadius: size / 2, 
-          top, 
-          left, 
-          opacity,
-          backgroundColor: '#FFFFFF',
-          zIndex: 0
-        },
-        animatedStyle
-      ]} 
-    />
+    <Pressable onPress={handlePress} style={styles.orbItem}>
+      <Animated.View style={[styles.orbIcon, { backgroundColor: color + '15' }, animatedStyle]}>
+        <MaterialCommunityIcons name={icon} size={24} color={color} />
+      </Animated.View>
+      <Text style={styles.orbLabel} numberOfLines={1}>{label}</Text>
+    </Pressable>
   );
 };
-
-
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -116,100 +102,31 @@ export default function HomeScreen() {
   const router = useRouter();
   const { recentFeatures, pinnedFeatures, togglePin, addRecent } = useFavoritesStore();
 
-  const floatAnim = useSharedValue(0);
-  useEffect(() => {
-    floatAnim.value = withRepeat(
-      withSequence(
-        withTiming(-4, { duration: 1500 }),
-        withTiming(0, { duration: 1500 })
-      ),
-      -1,
-      true
-    );
-  }, []);
-
-  const animatedIconStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: floatAnim.value }],
-  }));
-
   const [search, setSearch] = useState('');
   const [assistantAction, setAssistantAction] = useState<AssistantAction | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [weather, setWeather] = useState<any>(null);
   const [locationName, setLocationName] = useState('Detecting...');
   const [loading, setLoading] = useState(true);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const loadData = async () => {
     try {
       let { status } = await Location.getForegroundPermissionsAsync();
-      let lat = 40.7128, lon = -74.0060; // NYC Default
-
-      if (status !== 'granted') {
-        if (Platform.OS === 'web') {
-          try {
-            const webPos: any = await new Promise((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject, {
-                enableHighAccuracy: true,
-                timeout: 5000,
-                maximumAge: 0
-              });
-            });
-            if (webPos && webPos.coords) {
-              lat = webPos.coords.latitude;
-              lon = webPos.coords.longitude;
-              status = 'granted' as any;
-            }
-          } catch {}
-        }
-        
-        if (status !== 'granted') {
-          const res = await Location.requestForegroundPermissionsAsync();
-          status = res.status;
-        }
-      }
+      let lat = 40.7128, lon = -74.0060;
 
       if (status === 'granted') {
-        try {
-          let pos = await Location.getLastKnownPositionAsync({});
-          if (!pos) {
-            pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          }
-
-          if (pos) {
-            lat = pos.coords.latitude;
-            lon = pos.coords.longitude;
-            try {
-              const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
-              if (geo && geo[0]) {
-                const city = geo[0].city || geo[0].region || geo[0].district || geo[0].name || 'Current Location';
-                setLocationName(city);
-              } else {
-                setLocationName('Local Weather');
-              }
-            } catch {
-              setLocationName('Local Weather');
-            }
-          }
-        } catch (e: any) {
-          setLocationName('New York, NY');
-        }
-      } else {
-        setLocationName('New York, NY');
+        const pos = await Location.getLastKnownPositionAsync({});
+        if (pos) { lat = pos.coords.latitude; lon = pos.coords.longitude; }
       }
       
       const w = await fetchWeather(lat, lon);
       setWeather(w);
-
-      try {
-        const quotes = await fetchQuotesList();
-        if (quotes && quotes.length > 0) {
-          setCuratedQuotes(quotes.map(q => ({ q: q.content, a: q.author })));
-        }
-      } catch (e) {
-        console.warn('Failed to fetch quotes:', e);
-      }
-    } catch (e: any) {
-      setLocationName('New York, NY');
+      
+      const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
+      if (geo && geo[0]) setLocationName(geo[0].city || geo[0].region || 'Local');
+    } catch (e) {
+      setLocationName('New York');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -218,597 +135,238 @@ export default function HomeScreen() {
 
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [curatedQuotes, setCuratedQuotes] = useState([
-    { q: "The only way to do great work is to love what you do.", a: "Steve Jobs" },
-    { q: "Focus on being productive instead of busy.", a: "Tim Ferriss" },
-    { q: "Your time is limited, so don't waste it living someone else's life.", a: "Steve Jobs" },
-    { q: "Simplicity is the ultimate sophistication.", a: "Leonardo da Vinci" },
-    { q: "Quality is not an act, it is a habit.", a: "Aristotle" }
+    { q: "Thinking is the capital, Enterprise is the way, Hard Work is the solution.", a: "Abdul Kalam" },
+    { q: "Believe you can and you're halfway there.", a: "Theodore Roosevelt" }
   ]);
 
-  const [isRefreshingQuotes, setIsRefreshingQuotes] = useState(false);
-  const refreshRotation = useSharedValue(0);
-  
-  const refreshAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${refreshRotation.value * 360}deg` }]
-  }));
-
-  const shuffleQuotes = async () => {
-    if (isRefreshingQuotes) return;
-    mediumImpact();
-    setIsRefreshingQuotes(true);
-    refreshRotation.value = withRepeat(withTiming(1, { duration: 1000 }), -1);
-    
-    try {
-      const quotes = await fetchQuotesList();
-      if (quotes && quotes.length > 0) {
-        setCuratedQuotes(quotes.map(q => ({ q: q.content, a: q.author })));
-        setQuoteIndex(0);
-      }
-    } catch (e) {
-      setCuratedQuotes([...curatedQuotes].sort(() => Math.random() - 0.5));
-      setQuoteIndex(0);
-    } finally {
-      setIsRefreshingQuotes(false);
-      refreshRotation.value = withTiming(0);
-    }
-  };
-
   useEffect(() => {
-    const timer = setTimeout(() => {
-      loadData();
-    }, 800);
-    return () => clearTimeout(timer);
+    loadData();
+    fetchQuotesList().then(q => { if(q) setCuratedQuotes(q.map(x => ({q: x.content, a: x.author}))) });
   }, []);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadData();
-  };
+  const handleSpeak = useCallback((text: string) => {
+    if (isSpeaking) {
+      Speech.stop();
+      setIsSpeaking(false);
+    } else {
+      setIsSpeaking(true);
+      Speech.speak(text, { onDone: () => setIsSpeaking(false), onError: () => setIsSpeaking(false) });
+    }
+  }, [isSpeaking]);
 
-  const temp = weather ? Math.round(weather.temperature) : '--';
-  const weatherMeta = getWeatherMeta(weather?.weatherCode ?? 0);
+  const weatherTheme = getWeatherTheme(weather?.weatherCode ?? 0);
+  const quickTools = [
+    { id: 'weather', name: 'Weather', icon: 'weather-cloudy', route: '/(tabs)/tools/weather', color: '#0EA5E9' },
+    { id: 'qr', name: 'Scanner', icon: 'qrcode-scan', route: '/(tabs)/tools/barcode-scanner', color: '#F43F5E' },
+    { id: 'calc', name: 'Calculator', icon: 'calculator', route: '/(tabs)/finance/calculator', color: '#8B5CF6' },
+    { id: 'notes', name: 'Notes', icon: 'notebook-edit-outline', route: '/(tabs)/utilities/notes', color: '#10B981' },
+    { id: 'todo', name: 'Tasks', icon: 'list-check', route: '/(tabs)/utilities/todo-list', color: '#F59E0B' },
+  ];
 
   const categories = [
-    { id: 'finance', title: 'Finance', desc: 'Secure & fast', icon: 'chart-line', badge: 'MANAGE', img: 'cat_finance.png' },
-    { id: 'wellness', title: 'Wellness', desc: 'Active living', icon: 'heart-pulse', badge: 'IMPROVE', img: 'cat_wellness.png' },
-    { id: 'tools', title: 'Tools', desc: 'Home utility', icon: 'toolbox-outline', badge: 'UTILITY', img: 'cat_tools.png' },
-    { id: 'utilities', title: 'More', desc: 'Explore all', icon: 'apps', badge: 'EXPLORE', img: 'cat_utilities.png' },
+    { id: 'finance', title: 'Finance', desc: 'Secure & fast', icon: 'wallet-outline', accent: '#6366F1' },
+    { id: 'wellness', title: 'Wellness', desc: 'Health tracker', icon: 'heart-pulse', accent: '#EC4899' },
+    { id: 'tools', title: 'Smart Tools', desc: 'Everyday utility', icon: 'toolbox-outline', accent: '#06B6D4' },
+    { id: 'utilities', title: 'Assistant', desc: 'Full utility', icon: 'sparkles-outline', accent: '#F59E0B' },
   ];
-
-  const defaultRecents = [
-    { id: 'stocks', name: 'Stock Prices', icon: 'chart-line', route: '/(tabs)/finance/stocks' },
-    { id: 'qr-generator', name: 'QR Generator', icon: 'qrcode', route: '/(tabs)/tools/qr-generator' },
-    { id: 'bmi-calculator', name: 'BMI Calculator', icon: 'human-male-height', route: '/(tabs)/wellness/bmi-calculator' },
-    { id: 'pomodoro', name: 'Pomodoro', icon: 'clock-check-outline', route: '/(tabs)/utilities/pomodoro' },
-  ];
-
-  const displayRecents = recentFeatures.length > 0 
-    ? recentFeatures.map(id => features.find(f => f.id === id)).filter(Boolean)
-    : defaultRecents;
-
-  const filteredTools = search.length > 0
-    ? features.filter(f => 
-        f.name.toLowerCase().includes(search.toLowerCase()) || 
-        f.description?.toLowerCase().includes(search.toLowerCase())
-      )
-    : [];
-
-  const handleSearchChange = (text: string) => {
-    setSearch(text);
-    if (text.length > 2) {
-      const action = analyzeIntent(text);
-      setAssistantAction(action);
-    } else {
-      setAssistantAction(null);
-    }
-  };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background, alignItems: 'center' }]}>
-      <SafeAreaView style={[styles.safe, { width: '100%', maxWidth: MAX_WIDTH }]} edges={['top']}>
-        <ScrollView 
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 20 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} tintColor={theme.colors.accent} />}
+      >
+        {/* ─── Hero Section ─── */}
+        <LinearGradient
+          colors={weatherTheme.colors as any}
+          style={[styles.hero, { paddingTop: insets.top + 20 }]}
         >
-          {/* Premium Header */}
-          <Animated.View 
-            style={styles.headerWrapper}
-          >
-            <Pressable onPress={() => { mediumImpact(); loadData(); }}>
-              <LinearGradient
-                colors={theme.colors.gradient as any}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.headerCard}
-              >
-                <Bubble size={120} top={-40} left={-30} delay={0} opacity={0.12} />
-                <Bubble size={80} top={20} left={SCREEN_WIDTH - 100} delay={500} opacity={0.08} />
-                <Bubble size={40} top={80} left={SCREEN_WIDTH / 2} delay={1000} opacity={0.1} />
-                
-                <View style={styles.headerTop}>
-                  <View style={styles.headerTextGroup}>
-                    <Text style={styles.headerGreeting}>{getGreeting()}</Text>
-                    {isLoggedIn && user?.name ? (
-                      <Text style={styles.headerName}>{user.name.split(' ')[0]}</Text>
-                    ) : (
-                      <Text style={styles.headerName}>PockIt User</Text>
-                    )}
-                  </View>
+          <View style={styles.heroContent}>
+            <Animated.View entering={FadeInDown.delay(200)}>
+              <Text style={styles.heroGreeting}>{getGreeting()},</Text>
+              <Text style={styles.heroName}>{user?.name?.split(' ')[0] || 'Explorer'}</Text>
+            </Animated.View>
 
-                  <View style={styles.headerWeatherGroup}>
-                    <View style={styles.headerWeatherMain}>
-                      <Text style={styles.headerTemp}>{temp}°</Text>
-                      <MaterialCommunityIcons name={weatherMeta.icon as any} size={32} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.weatherHeaderRow}>
-                      <Text style={styles.weatherLocationSmall}>{locationName.toUpperCase()}</Text>
-                      <MaterialCommunityIcons name="map-marker-radius-outline" size={10} color="rgba(255,255,255,0.6)" />
-                    </View>
-                  </View>
-                </View>
-              </LinearGradient>
-            </Pressable>
-          </Animated.View>
-
-          {/* Floating Overlapping Search */}
-          <Animated.View 
-            style={styles.floatingSearchWrapper}
-          >
-            <PockItInput
-              placeholder="Ask anything or search tools..."
-              value={search}
-              onChangeText={handleSearchChange}
-              icon={<MaterialCommunityIcons name="lightning-bolt" size={24} color={theme.colors.accent} />}
-              containerStyle={styles.floatingSearchContainer}
-              wrapperStyle={styles.floatingSearchWrapperStyle}
-              inputStyle={styles.floatingSearchInput}
-              showClear
-              onClear={() => { setSearch(''); setAssistantAction(null); }}
-            />
-          </Animated.View>
-
-          <View style={styles.bodyContent}>
-
-          {search.length > 0 ? (
-            <View style={styles.resultsPanel}>
-              {assistantAction && (
-                <AssistantCard 
-                  action={assistantAction} 
-                  onClose={() => setAssistantAction(null)} 
-                />
-              )}
-              {filteredTools.map((f: any) => (
-                <Pressable 
-                  key={f.id} 
-                  style={[styles.resultItem, { borderBottomColor: theme.colors.borderLight }]}
-                  onPress={() => { setSearch(''); router.push(f.route as any); }}
-                >
-                  <View style={[styles.resultIcon, { backgroundColor: theme.colors.accentMuted }]}>
-                    <MaterialCommunityIcons name={f.icon as any} size={20} color={theme.colors.accent} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.resultName, { color: theme.colors.text }]}>{f.name}</Text>
-                    <Text style={[styles.resultSub, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                      {f.description}
-                    </Text>
-                  </View>
-                  <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.textTertiary} />
-                </Pressable>
-              ))}
-              {filteredTools.length === 0 && (
-                <Text style={[styles.noResults, { color: theme.colors.textSecondary }]}>No tools found matching "{search}"</Text>
-              )}
-            </View>
-          ) : (
-            <>
-              {/* Quote Carousel */}
-              <View style={styles.quoteSection}>
-                <View style={[styles.quoteHeader, { justifyContent: 'space-between' }]}>
-                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <MaterialCommunityIcons name="auto-fix" size={16} color={theme.colors.accent} />
-                      <Text style={[styles.quoteLabel, { color: theme.colors.textTertiary }]}>HOME INSIGHT</Text>
-                   </View>
-                   <Pressable onPress={shuffleQuotes} hitSlop={12} disabled={isRefreshingQuotes}>
-                      <Animated.View style={refreshAnimatedStyle}>
-                         <MaterialCommunityIcons 
-                           name="cached" 
-                           size={18} 
-                           color={isRefreshingQuotes ? theme.colors.textTertiary : theme.colors.accent} 
-                         />
-                      </Animated.View>
-                   </Pressable>
-                </View>
-                
-                <LinearGradient
-                   colors={[theme.colors.accent, theme.colors.accentDark]}
-                   start={{ x: 0, y: 0 }}
-                   end={{ x: 1, y: 1 }}
-                   style={styles.quoteCard}
-                >
-
-                  <View style={styles.quoteControlRow}>
-                    <MaterialCommunityIcons name="chevron-left" size={24} color="rgba(255,255,255,0.6)" />
-                    <ScrollView 
-                       horizontal 
-                       pagingEnabled 
-                       showsHorizontalScrollIndicator={false}
-                       contentContainerStyle={{ paddingHorizontal: 10 }}
-                       onScroll={(e) => {
-                          const containerWidth = IS_LARGE_WEB ? (MAX_WIDTH - 120) : (SCREEN_WIDTH - 120);
-                          const idx = Math.round(e.nativeEvent.contentOffset.x / containerWidth);
-                          if (idx !== quoteIndex) setQuoteIndex(idx);
-                       }}
-                       scrollEventThrottle={16}
-                    >
-                      {curatedQuotes.map((item, idx) => (
-                        <View key={idx} style={styles.quoteItem}>
-                          <ScrollView 
-                            showsVerticalScrollIndicator={false} 
-                            nestedScrollEnabled={true}
-                            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 10 }}
-                          >
-                            <Text style={styles.quoteText}>"{item.q}"</Text>
-                            <Text style={styles.quoteAuthor}>— {item.a}</Text>
-                          </ScrollView>
-                        </View>
-                      ))}
-                    </ScrollView>
-                    <MaterialCommunityIcons name="chevron-right" size={24} color="rgba(255,255,255,0.6)" />
-                  </View>
-                </LinearGradient>
+            <Animated.View entering={FadeInDown.delay(400)} style={styles.heroWeather}>
+              <View style={styles.weatherGlass}>
+                <MaterialCommunityIcons name={weatherTheme.icon as any} size={32} color="#FFF" />
+                <Text style={styles.heroTemp}>{Math.round(weather?.temperature || 0)}°</Text>
+                <Text style={styles.weatherLabel}>{weatherTheme.label}</Text>
               </View>
-
-              <View style={styles.catGrid}>
-                {categories.map((cat, i) => {
-                  const isLastOdd = i === categories.length - 1 && categories.length % 2 !== 0;
-                  return (
-                    <Animated.View 
-                      key={cat.id} 
-                      style={[styles.catWrap, isLastOdd && { width: '100%' }]}
-                    >
-                      <Pressable
-                        style={[styles.pathaoCard, { backgroundColor: theme.colors.surface }]}
-                        onPress={() => {
-                          lightImpact();
-                          router.push(`/(tabs)/${cat.id}` as any);
-                        }}
-                      >
-                        <View style={styles.pathaoInfo}>
-                          <Text style={[styles.pathaoTitle, { color: theme.colors.text }]}>{cat.title}</Text>
-                          <Text style={[styles.pathaoDesc, { color: theme.colors.textSecondary }]}>{cat.desc}</Text>
-                        </View>
-                        
-                        <Animated.View style={[styles.pathaoImgWrap, animatedIconStyle]}>
-                          <MaterialCommunityIcons 
-                            name={cat.icon as any} 
-                            size={60} 
-                            color={theme.colors.accent} 
-                            style={{ opacity: 0.07 }}
-                          />
-                        </Animated.View>
-
-                        <View style={[styles.pathaoBadge, { backgroundColor: theme.colors.surfaceSecondary }]}>
-                           <MaterialCommunityIcons name="check-decagram" size={10} color={theme.colors.accent} />
-                           <Text style={[styles.pathaoBadgeText, { color: theme.colors.textSecondary }]}>{cat.badge}</Text>
-                        </View>
-                      </Pressable>
-                    </Animated.View>
-                  );
-                })}
-              </View>
-
-              {/* Recent */}
-              <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 12 }]}>Recent</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recentScroll}>
-                {displayRecents.map((item: any, i) => (
-                  <View key={item.id} style={{ position: 'relative' }}>
-                    <Pressable 
-                      style={[styles.recentCard, { backgroundColor: theme.colors.surface }]}
-                      onPress={() => {
-                        lightImpact();
-                        if (item.route) {
-                          addRecent(item.id);
-                          router.push(item.route as any);
-                        }
-                      }}
-                    >
-                      <View style={[styles.recentIconWrap, { backgroundColor: theme.colors.surfaceSecondary }]}>
-                        <MaterialCommunityIcons name={item.icon || 'star'} size={20} color={theme.colors.accent} />
-                      </View>
-                      <Text style={[styles.recentLabel, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Text>
-                    </Pressable>
-                    
-                    {/* Pick Toggle */}
-                    <Pressable 
-                      onPress={() => { lightImpact(); togglePin(item.id); }}
-                      style={[
-                        styles.pickToggleSmall, 
-                        { 
-                          backgroundColor: pinnedFeatures.includes(item.id) ? theme.colors.accent : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)') 
-                        }
-                      ]}
-                    >
-                      <MaterialCommunityIcons 
-                        name={pinnedFeatures.includes(item.id) ? "star" : "star-outline"} 
-                        size={10} 
-                        color={pinnedFeatures.includes(item.id) ? "#FFFFFF" : theme.colors.textTertiary} 
-                      />
-                    </Pressable>
-                  </View>
-                ))}
-              </ScrollView>
-
-              {/* Focus Session Card */}
-              <View style={[styles.focusCard, { backgroundColor: theme.colors.surfaceSecondary }]}>
-                <View style={styles.focusContent}>
-                  <Text style={[styles.focusTitle, { color: theme.colors.text }]}>Focus Session</Text>
-                  <Text style={[styles.focusSub, { color: theme.colors.textSecondary }]}>
-                    Boost your productivity with a 25-minute curated focus timer.
-                  </Text>
-                  <Pressable 
-                    style={[styles.focusBtn, { backgroundColor: theme.colors.accent }]} 
-                    onPress={() => { lightImpact(); router.push('/(tabs)/utilities/pomodoro' as any); }}
-                  >
-                    <Text style={styles.focusBtnText}>Start Now</Text>
-                  </Pressable>
-                </View>
-                <View style={[styles.focusIconBox, { backgroundColor: theme.colors.accentMuted }]}>
-                  <MaterialCommunityIcons name="timer-outline" size={42} color={theme.colors.accent} />
-                </View>
-              </View>
-            </>
-          )}
-
-          <View style={{ height: 100 }} />
+            </Animated.View>
           </View>
-        </ScrollView>
-      </SafeAreaView>
 
+          {/* Floating Action Search */}
+          <View style={styles.searchContainer}>
+            <PockItInput
+              placeholder="What can I help you find?"
+              value={search}
+              onChangeText={setSearch}
+              icon={<MaterialCommunityIcons name="magnify" size={22} color={theme.colors.accent} />}
+              containerStyle={styles.searchInner}
+            />
+          </View>
+        </LinearGradient>
 
+        <View style={styles.body}>
+          {/* ─── Quick Orbs ─── */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.orbScroll}>
+            {quickTools.map((tool, i) => (
+              <Animated.View key={tool.id} entering={FadeInRight.delay(i * 100)}>
+                <QuickOrb {...tool} />
+              </Animated.View>
+            ))}
+          </ScrollView>
+
+          {/* ─── Insight Card ─── */}
+          <Animated.View entering={FadeInDown.delay(500)} style={[styles.insightCard, { backgroundColor: theme.colors.surface }]}>
+             <View style={styles.insightHeader}>
+                <View style={styles.insightTitleRow}>
+                   <MaterialCommunityIcons name="lightbulb-on-outline" size={18} color="#F59E0B" />
+                   <Text style={[styles.insightTitle, { color: theme.colors.textTertiary }]}>DAILY INSIGHT</Text>
+                </View>
+                <Pressable onPress={() => handleSpeak(curatedQuotes[quoteIndex].q)} style={styles.speakBtn}>
+                   <MaterialCommunityIcons name={isSpeaking ? "stop-circle" : "volume-high"} size={20} color={theme.colors.accent} />
+                </Pressable>
+             </View>
+             <Text style={[styles.insightText, { color: theme.colors.text }]}>"{curatedQuotes[quoteIndex].q}"</Text>
+             <Text style={[styles.insightAuthor, { color: theme.colors.textSecondary }]}>— {curatedQuotes[quoteIndex].a}</Text>
+          </Animated.View>
+
+          {/* ─── Category Grid ─── */}
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Categories</Text>
+          <View style={styles.grid}>
+            {categories.map((cat, i) => (
+              <Animated.View key={cat.id} entering={FadeInDown.delay(600 + (i * 100))} style={styles.gridItem}>
+                <Pressable 
+                  style={[styles.catCard, { backgroundColor: theme.colors.surface }]}
+                  onPress={() => router.push(`/(tabs)/${cat.id}` as any)}
+                >
+                  <View style={[styles.catIconBox, { backgroundColor: cat.accent + '15' }]}>
+                    <MaterialCommunityIcons name={cat.icon as any} size={28} color={cat.accent} />
+                  </View>
+                  <Text style={[styles.catTitle, { color: theme.colors.text }]}>{cat.title}</Text>
+                  <Text style={[styles.catDesc, { color: theme.colors.textSecondary }]}>{cat.desc}</Text>
+                  
+                  <View style={styles.catGo}>
+                    <MaterialCommunityIcons name="arrow-right" size={16} color={theme.colors.textTertiary} />
+                  </View>
+                </Pressable>
+              </Animated.View>
+            ))}
+          </View>
+
+          {/* ─── Recent Pick ─── */}
+          <View style={[styles.promoCard, { backgroundColor: theme.colors.accent }]}>
+             <View style={styles.promoTextCol}>
+                <Text style={styles.promoTitle}>Unlock Focus</Text>
+                <Text style={styles.promoSub}>Join a 25-minute Pomodoro session now.</Text>
+                <Pressable style={styles.promoBtn} onPress={() => router.push('/(tabs)/utilities/pomodoro')}>
+                   <Text style={[styles.promoBtnText, { color: theme.colors.accent }]}>Let's go</Text>
+                </Pressable>
+             </View>
+             <MaterialCommunityIcons name="timer-sand" size={80} color="rgba(255,255,255,0.2)" style={styles.promoIcon} />
+          </View>
+        </View>
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safe: { flex: 1 },
-  headerWrapper: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    marginBottom: 8,
+  hero: {
+    paddingHorizontal: 24,
+    paddingBottom: 60,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
   },
-  headerCard: {
-    borderRadius: 32,
-    padding: 24,
-    minHeight: 140,
-    elevation: 8,
+  heroContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 30,
+  },
+  heroGreeting: { fontSize: 16, fontWeight: '700', color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: 1 },
+  heroName: { fontSize: 36, fontWeight: '900', color: '#FFFFFF', letterSpacing: -1 },
+  heroWeather: { alignItems: 'flex-end' },
+  weatherGlass: {
+    padding: 12,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  heroTemp: { fontSize: 24, fontWeight: '900', color: '#FFF', marginTop: 4 },
+  weatherLabel: { fontSize: 10, fontWeight: '800', color: '#FFF', opacity: 0.8, textTransform: 'uppercase' },
+  searchContainer: {
+    position: 'absolute',
+    bottom: -28,
+    left: 24,
+    right: 24,
+    zIndex: 10,
+  },
+  searchInner: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    height: 56,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
-    shadowRadius: 15,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    paddingBottom: 40,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 1,
-  },
-  headerTextGroup: {
-    flex: 1,
-  },
-  headerGreeting: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  headerName: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-    marginTop: -2,
-  },
-  headerWeatherGroup: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  headerWeatherMain: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  headerTemp: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-  },
-  weatherLocationSmall: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    marginRight: 4,
-  },
-  weatherHeaderRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    marginTop: 2,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  weatherBodyRow: { flexDirection: 'row', alignItems: 'center' },
-  
-  floatingSearchWrapper: {
-    marginTop: -28,
-    marginBottom: 24,
-    paddingHorizontal: 16,
-    zIndex: 10,
-  },
-  floatingSearchContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    height: 56,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
-    overflow: 'hidden',
-  },
-  floatingSearchWrapperStyle: {
-    backgroundColor: 'transparent',
-    borderRadius: 24,
-    height: '100%',
-    paddingHorizontal: 16,
-  },
-  floatingSearchInput: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
-  bodyContent: {
-    paddingHorizontal: 16,
-  },
-
-  resultsPanel: {
-    marginBottom: 30,
-  },
-  resultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    gap: 12,
-  },
-  resultIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resultName: { fontSize: 15, fontWeight: '700' },
-  resultSub: { fontSize: 11, opacity: 0.8 },
-  noResults: { textAlign: 'center', marginTop: 20, fontSize: 14 },
-  
-  quoteSection: { marginBottom: 30 },
-  quoteHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, paddingHorizontal: 4 },
-  quoteLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  quoteCard: { 
-    borderRadius: 28, 
-    height: 150,
-    padding: 16,
-    elevation: 8,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
     shadowRadius: 20,
-    overflow: 'hidden',
+    elevation: 8,
+    paddingHorizontal: 16,
   },
-  quoteControlRow: { flexDirection: 'row', alignItems: 'center', height: '100%' },
-  quoteItem: { width: IS_LARGE_WEB ? (MAX_WIDTH - 120) : (SCREEN_WIDTH - 120), height: '100%', paddingHorizontal: 10 },
-  quoteText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', fontStyle: 'italic', lineHeight: 22, textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.1)', textShadowRadius: 4 },
-  quoteAuthor: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 4 },
-
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  sectionTitle: { fontSize: 22, fontWeight: '800' },
-
-  catGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, marginBottom: 32 },
-  catWrap: { width: IS_LARGE_WEB ? (MAX_WIDTH - 52) / 2 : (SCREEN_WIDTH - 52) / 2 },
-  pathaoCard: {
-    height: 110,
-    borderRadius: 28,
-    padding: 16,
-    overflow: 'hidden',
-    elevation: 2,
+  body: { paddingHorizontal: 24, paddingTop: 40 },
+  orbScroll: { paddingVertical: 20, gap: 20 },
+  orbItem: { alignItems: 'center', width: 70 },
+  orbIcon: { width: 56, height: 56, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  orbLabel: { fontSize: 11, fontWeight: '700', color: '#666' },
+  insightCard: {
+    borderRadius: 32,
+    padding: 24,
+    marginBottom: 32,
     shadowColor: '#000',
     shadowOpacity: 0.05,
+    shadowRadius: 15,
+    elevation: 3,
+  },
+  insightHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  insightTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  insightTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  speakBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1F3F4', alignItems: 'center', justifyContent: 'center' },
+  insightText: { fontSize: 17, fontWeight: '700', fontStyle: 'italic', lineHeight: 26 },
+  insightAuthor: { fontSize: 13, fontWeight: '600', marginTop: 8, opacity: 0.8 },
+  sectionTitle: { fontSize: 22, fontWeight: '900', marginBottom: 20, letterSpacing: -0.5 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 32 },
+  gridItem: { width: (SCREEN_WIDTH - 64) / 2 },
+  catCard: {
+    padding: 20,
+    borderRadius: 30,
+    minHeight: 160,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
     shadowRadius: 10,
+    elevation: 2,
   },
-  pathaoInfo: { zIndex: 2 },
-  pathaoTitle: { fontSize: 20, fontWeight: '900', letterSpacing: -0.5 },
-  pathaoDesc: { fontSize: 11, fontWeight: '500', opacity: 0.7, marginTop: 2 },
-  pathaoImgWrap: { 
-    position: 'absolute', 
-    right: 8, 
-    bottom: 4, 
-    width: 80, 
-    height: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 0,
-  },
-  pathaoImg: {
-    width: '100%',
-    height: '100%',
-  },
-  pathaoIconFallback: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pathaoBadge: {
-    position: 'absolute',
-    left: 16,
-    bottom: 16,
+  catIconBox: { width: 52, height: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  catTitle: { fontSize: 18, fontWeight: '800' },
+  catDesc: { fontSize: 11, fontWeight: '500', opacity: 0.6, marginTop: 4 },
+  catGo: { position: 'absolute', right: 20, bottom: 20 },
+  promoCard: {
+    padding: 24,
+    borderRadius: 32,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
+    overflow: 'hidden',
+    marginBottom: 40,
   },
-  pathaoBadgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  
-  recentScroll: { marginBottom: 32, overflow: 'visible' },
-  recentCard: {
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    alignItems: 'center', 
-    justifyContent: 'center',
-    borderRadius: 24,
-    marginRight: 12,
-    width: IS_LARGE_WEB ? (MAX_WIDTH - 52) / 2.5 : (SCREEN_WIDTH - 52) / 2.5,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-  },
-  recentIconWrap: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  recentLabel: { fontSize: 12, fontWeight: '700' },
-  pickToggleSmall: {
-    position: 'absolute',
-    top: 6,
-    right: 18,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  
-  focusCard: { borderRadius: 30, padding: 24, flexDirection: 'row', alignItems: 'center', marginBottom: 40 },
-  focusContent: { flex: 1, paddingRight: 16 },
-  focusTitle: { fontSize: 18, fontWeight: '800', marginBottom: 8 },
-  focusSub: { fontSize: 13, fontWeight: '500', lineHeight: 18, marginBottom: 16 },
-  focusBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
-  focusBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, alignSelf: 'flex-start' },
-  focusIconBox: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  
-
+  promoTextCol: { flex: 1, zIndex: 1 },
+  promoTitle: { fontSize: 24, fontWeight: '900', color: '#FFF' },
+  promoSub: { fontSize: 13, color: '#FFF', opacity: 0.8, marginTop: 4, marginBottom: 16 },
+  promoBtn: { backgroundColor: '#FFF', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 15, alignSelf: 'flex-start' },
+  promoBtnText: { fontWeight: '800', fontSize: 14 },
+  promoIcon: { position: 'absolute', right: -10, bottom: -10 },
 });

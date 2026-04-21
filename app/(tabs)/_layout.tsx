@@ -540,8 +540,10 @@ function GlobalHeader() {
               <Image source={{ uri: user.picture }} style={styles.avatarImage} />
             ) : (
               <LinearGradient colors={theme.palette.gradient as any} style={styles.avatarGradient}>
-                <Text style={styles.avatarInitial}>{isLoggedIn ? userInitial : ''}</Text>
-                {!isLoggedIn && <MaterialCommunityIcons name="account" size={22} color="white" />}
+                <Text style={[styles.avatarInitial, { includeFontPadding: false, textAlignVertical: 'center' }]}>
+                  {isLoggedIn ? userInitial : ''}
+                </Text>
+                {!isLoggedIn && <MaterialCommunityIcons name="account" size={20} color="white" />}
               </LinearGradient>
             )}
           </Pressable>
@@ -661,11 +663,11 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   headerIcon: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
   headerLogo: { fontSize: 22, fontWeight: '900', letterSpacing: -0.8 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  avatarWrap: { width: 34, height: 34, borderRadius: 17, overflow: 'hidden', marginLeft: 8 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10, height: 44 },
+  avatarWrap: { width: 36, height: 36, borderRadius: 18, overflow: 'hidden' },
   avatarGradient: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  avatarImage: { width: '100%', height: '100%', borderRadius: 17 },
-  avatarInitial: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 18 },
+  avatarInitial: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', textAlign: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   pickerContent: { width: '100%', maxWidth: 320, borderRadius: 32, padding: 24 },
   pickerTitle: { fontSize: 18, fontWeight: '800', marginBottom: 20, textAlign: 'center' },
@@ -696,10 +698,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 0.2,
   },
-  themeBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
-  themeRingOuter: { position: 'absolute', width: 34, height: 34, borderRadius: 17, overflow: 'hidden' },
-  themeRingGradient: { flex: 1, borderRadius: 17 },
-  themeInner: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  themeBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  themeRingOuter: { position: 'absolute', width: 36, height: 36, borderRadius: 18, overflow: 'hidden' },
+  themeRingGradient: { flex: 1, borderRadius: 18 },
+  themeInner: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   profileContent: { width: '90%', maxWidth: 340, borderRadius: 36, padding: 32, shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.15, shadowRadius: 30, elevation: 15 },
   profileHeader: { alignItems: 'center' },
   profileAvatarContainer: { position: 'relative', marginBottom: 16 },
